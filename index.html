@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>診所管理系統 - 數位入口</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root { 
+            --primary: #5c6b73; --accent: #8ecae6; --success: #9dc88d; 
+            --danger: #ef9a9a; --bg: #f8f9fa; --gray: #b0bec5;
+            --orange: #ffcc80; --teal: #80cbc4;
+        }
+        body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        
+        /* 全畫面遮罩 */
+        #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.7); backdrop-filter: blur(2px); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        .spinner { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        .card { background: white; padding: 1.5rem; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); width: 95%; max-width: 420px; text-align: center; box-sizing: border-box; }
+        .hidden { display: none !important; }
+
+        /* 登入樣式 */
+        .input-group { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
+        .input-label { font-size: 0.8em; color: #888; display: block; margin-bottom: 5px; }
+        .input-field { padding: 12px; font-size: 1.2em; text-align: center; border: 2px solid #eee; border-radius: 12px; background: white; transition: 0.3s; }
+        .input-field:focus { border-color: var(--accent); outline: none; background: #fff; }
+        
+        .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0 auto; max-width: 280px; }
+        .pin-btn { padding: 18px; font-size: 1.5em; border: 1px solid #f0f0f0; background: #fff; border-radius: 16px; cursor: pointer; transition: 0.2s; font-weight: bold; color: var(--primary); }
+        .pin-btn:active { background: #f8f9fa; transform: scale(0.92); }
+        .pin-btn.action { background: #fdfdfd; font-size: 1em; color: #999; }
+
+        /* 選單佈局 */
+        .user-header { background: #fcfcfc; border-radius: 15px; padding: 15px; margin-bottom: 20px; border: 1px solid #f5f5f5; }
+        .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        
+        /* 按鈕基礎樣式 */
+        .menu-btn { width: 100%; border: none; border-radius: 16px; padding: 15px 10px; font-size: 0.95em; cursor: pointer; color: white; font-weight: bold; transition: 0.2s; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+        .menu-btn i { font-size: 1.4em; }
+        .menu-btn:active { transform: scale(0.96); box-shadow: none; filter: brightness(0.95); }
+
+        /* 打卡按鈕 - 最大 */
+        .btn-attendance { grid-column: span 2; padding: 30px 10px; font-size: 1.3em; background: var(--accent); box-shadow: 0 6px 15px rgba(142, 202, 230, 0.3); }
+        
+        /* 配色方案 */
+        .btn-schedule { background: var(--success); }
+        .btn-salary { background: #9fa8da; } /* 柔和紫藍 */
+        .btn-history { background: var(--gray); }
+        .btn-leave { background: var(--orange); }
+        .btn-log { background: var(--teal); }
+        .btn-form { background: #ce93d8; } /* 柔和紫 */
+        .btn-logout { background: #eceff1; color: #78909c; grid-column: span 2; margin-top: 10px; padding: 12px; }
+
+        #msg { color: var(--danger); font-size: 0.9em; margin-top: 15px; min-height: 1.2em; font-weight: bold; }
+
+        /* 彈窗樣式 */
+        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 1000; display: flex; justify-content: center; align-items: center; }
+        .modal-content { background: white; width: 90%; max-width: 400px; border-radius: 24px; padding: 25px; max-height: 85vh; overflow-y: auto; }
+        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #f9f9f9; }
+        .btn-view { background: var(--success); color: white; padding: 8px 15px; border-radius: 10px; text-decoration: none; font-size: 0.85em; }
+    </style>
+</head>
+<body>
+
+    <div id="loadingOverlay" class="hidden">
+        <div class="spinner"></div>
+        <p style="margin-top:15px; color:var(--primary); font-weight:bold;">資料傳輸中...</p>
+    </div>
+
+    <div id="loginPage" class="card">
+        <h2 style="margin: 0 0 20px 0; color: var(--primary);">診所管理系統</h2>
+        <div class="input-group">
+            <div style="flex: 1;">
+                <label class="input-label">工號</label>
+                <input type="text" id="empId" placeholder="ID" class="input-field" style="width: 100%; box-sizing: border-box;">
+            </div>
+            <div style="flex: 1.5;">
+                <label class="input-label">密碼</label>
+                <input type="password" id="pinInput" placeholder="PIN" class="input-field" style="width: 100%; box-sizing: border-box; background: #fafafa;" onfocus="this.blur();">
+            </div>
+        </div>
+        <div class="pin-grid">
+            <button class="pin-btn" onclick="pressKey('1')">1</button>
+            <button class="pin-btn" onclick="pressKey('2')">2</button>
+            <button class="pin-btn" onclick="pressKey('3')">3</button>
+            <button class="pin-btn" onclick="pressKey('4')">4</button>
+            <button class="pin-btn" onclick="pressKey('5')">5</button>
+            <button class="pin-btn" onclick="pressKey('6')">6</button>
+            <button class="pin-btn" onclick="pressKey('7')">7</button>
+            <button class="pin-btn" onclick="pressKey('8')">8</button>
+            <button class="pin-btn" onclick="pressKey('9')">9</button>
+            <button class="pin-btn action" onclick="clearPin()">清除</button>
+            <button class="pin-btn" onclick="pressKey('0')">0</button>
+            <button class="pin-btn action" onclick="submitLogin()" style="background:var(--success); color:white; border: none;">確認</button>
+        </div>
+        <p id="msg"></p>
+    </div>
+
+    <div id="menuPage" class="card hidden">
+        <div class="user-header">
+            <span style="color:#999; font-size:0.9em;">Clinic Management System</span><br>
+            <strong style="font-size:1.4em; color: var(--primary);"><span id="userName"></span></strong> 
+            <div id="userRole" style="margin-top: 5px; font-size:0.8em; display: inline-block; background:#fff; border:1px solid #eee; padding:2px 12px; border-radius:20px; color: #666;"></div>
+        </div>
+        
+        <div class="menu-grid">
+            <button class="menu-btn btn-attendance" onclick="openModule('attendance')">
+                <i class="fa-solid fa-clock-rotate-left"></i> 上班 / 下班打卡
+            </button>
+
+            <div id="adminMenu" class="menu-grid" style="grid-column: span 2; display: contents;">
+                <button class="menu-btn btn-schedule" onclick="openModule('schedule_admin')">
+                    <i class="fa-solid fa-calendar-check"></i> 排班管理
+                </button>
+                <button class="menu-btn btn-salary" onclick="requireSalaryPin()">
+                    <i class="fa-solid fa-calculator"></i> 薪資結算
+                </button>
+            </div>
+
+            <button class="menu-btn btn-schedule" onclick="openModule('schedule_view')">
+                <i class="fa-solid fa-calendar-days"></i> 查看班表
+            </button>
+            <button class="menu-btn btn-log" onclick="showAttendanceHistory()">
+                <i class="fa-solid fa-fingerprint"></i> 打卡紀錄
+            </button>
+            <button class="menu-btn btn-leave" onclick="showLeaveHistory()">
+                <i class="fa-solid fa-umbrella-beach"></i> 請假紀錄
+            </button>
+            <button class="menu-btn btn-salary" onclick="openModule('salary_check')">
+                <i class="fa-solid fa-file-invoice-dollar"></i> 薪資核對
+            </button>
+            <button class="menu-btn btn-form" onclick="alert('表單功能即將上線')">
+                <i class="fa-solid fa-pen-to-square"></i> 請假申請
+            </button>
+            <button class="menu-btn btn-history" onclick="showSalaryHistory()">
+                <i class="fa-solid fa-box-archive"></i> 過往薪資
+            </button>
+
+            <button class="menu-btn btn-logout" onclick="logout()">
+                <i class="fa-solid fa-right-from-bracket"></i> 安全登出系統
+            </button>
+        </div>
+    </div>
+
+    <div id="historyModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 style="margin-top:0; color:var(--primary); border-bottom:2px solid #f0f0f0; padding-bottom:10px;"><i class="fa-solid fa-box-archive"></i> 歷史薪資單</h3>
+            <div id="historyList" style="text-align: left;"></div>
+            <button class="menu-btn btn-logout" onclick="closeHistoryModal()">關閉</button>
+        </div>
+    </div>
+	
+    <div id="leaveModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 style="margin-top:0; color:var(--primary); border-bottom:2px solid #f0f0f0; padding-bottom:10px;">
+                <i class="fa-solid fa-umbrella-beach"></i> <span id="leaveYear"></span> 年度請假
+            </h3>
+            <div id="leaveList" style="text-align: left; margin-top:15px;"></div>
+            <button class="menu-btn btn-logout" onclick="$('#leaveModal').addClass('hidden')">關閉</button>
+        </div>
+    </div>
+
+    <div id="attendanceModal" class="modal-overlay hidden">
+        <div class="modal-content">
+            <h3 style="margin-top:0; color:var(--primary); border-bottom:2px solid #f0f0f0; padding-bottom:10px;"><i class="fa-solid fa-fingerprint"></i> 最近打卡紀錄</h3>
+            <div id="attendanceList" style="text-align: left; margin-top:15px;"></div>
+            <button class="menu-btn btn-logout" onclick="$('#attendanceModal').addClass('hidden')">關閉</button>
+        </div>
+    </div>
+
+<script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxIzIUEMUkN2iWjKnYbdq-6znGrxFF7gajztQnSrsWto9BeeT-c98yooTk75OPMP7Qitw/exec";
+    let currentPin = "";
+    let currentUser = null;
+    let idleTimer;
+
+    $(document).ready(function() {
+        // 鍵盤輸入監聽
+        $(document).on('keydown', function(e) {
+            if (document.activeElement.id === 'empId') {
+                if (e.key === 'Enter') submitLogin();
+                return;
+            }
+            // 實體鍵盤輸入數字
+            if (e.key >= '0' && e.key <= '9') {
+                pressKey(e.key);
+            } else if (e.key === 'Backspace') {
+                currentPin = currentPin.slice(0, -1);
+                updateDisplay();
+            } else if (e.key === 'Enter') {
+                submitLogin();
+            } else if (e.key === 'Escape') {
+                clearPin();
+                $('.modal-overlay').addClass('hidden');
+            }
+        });
+
+        // 檢查是否維持登入 (sessionStorage)
+        const savedUser = sessionStorage.getItem('clinicUser');
+        if (savedUser) {
+            currentUser = JSON.parse(savedUser);
+            showMenu();
+        }
+
+        $('#empId').focus();
+    });
+
+    function toggleLoading(show) {
+        if (show) $('#loadingOverlay').removeClass('hidden');
+        else $('#loadingOverlay').addClass('hidden');
+    }
+
+    function pressKey(num) { if (currentPin.length < 6) { currentPin += num; updateDisplay(); } }
+    function clearPin() { currentPin = ""; updateDisplay(); showError(""); }
+    function updateDisplay() { $('#pinInput').val(currentPin); }
+
+    async function submitLogin() {
+        const empId = $('#empId').val();
+        if (!empId) { showError("請輸入工號"); $('#empId').focus(); return; }
+        if (!currentPin) { showError("請輸入密碼"); return; }
+        
+        showError("驗證中...");
+        toggleLoading(true);
+        
+        try {
+            const resp = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "login", empId: empId, patternCode: currentPin })
+            });
+            const res = await resp.json();
+            if (res.status === "success") {
+                currentUser = { ...res, pin: currentPin };
+                sessionStorage.setItem('clinicUser', JSON.stringify(currentUser));
+                showMenu();
+            } else {
+                showError("❌ " + res.message);
+                clearPin();
+            }
+        } catch (e) { showError("❌ 連線失敗"); }
+        finally { toggleLoading(false); }
+    }
+
+    function showMenu() {
+        $('#loginPage').addClass('hidden');
+        $('#menuPage').removeClass('hidden');
+        $('#userName').text(currentUser.name);
+        $('#userRole').text(currentUser.role);
+        
+        // 主管顯示額外選單
+        if (currentUser.role === "主管" || currentUser.role === "Admin") {
+            $('#adminMenu').show();
+        } else {
+            $('#adminMenu').hide();
+        }
+        startIdleTimer();
+    }
+
+    // 每個彈窗與按鈕點選時都呼叫 toggleLoading
+    async function showSalaryHistory() {
+        toggleLoading(true);
+        try {
+            const resp = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "getSalaryHistory", empId: currentUser.empId })
+            });
+            const res = await resp.json();
+            if (res.status === "success") {
+                showError("");
+                const listArea = $('#historyList');
+                listArea.empty();
+                if (res.data.length === 0) {
+                    listArea.append('<p style="text-align:center; color:#999; padding:20px;">尚無歷史資料</p>');
+                } else {
+                    res.data.forEach(item => {
+                        listArea.append(`<div class="history-item">
+                            <span style="font-weight:bold; color:#333;">${item.yearMonth}</span>
+                            <a href="${item.slipLink}" target="_blank" class="btn-view" onclick="toggleLoading(true); setTimeout(()=>toggleLoading(false),1500)">開啟</a>
+                        </div>`);
+                    });
+                }
+                $('#historyModal').removeClass('hidden');
+            } else { alert(res.message); }
+        } catch (e) { alert("網路異常"); }
+        finally { toggleLoading(false); }
+    }
+
+    async function showLeaveHistory() {
+        toggleLoading(true);
+        try {
+            const resp = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "getLeaveRecords", empId: currentUser.empId })
+            });
+            const res = await resp.json();
+            if (res.status === "success") {
+                showError("");
+                $('#leaveYear').text(res.year);
+                const listArea = $('#leaveList').empty();
+                if (res.data.length === 0) {
+                    listArea.append('<p style="text-align:center; color:#999;">目前無紀錄</p>');
+                } else {
+                    // 統計邏輯
+                    const stats = {};
+                    res.data.forEach(item => {
+                        if (item.status !== "退回") {
+                            const weight = (item.shift === "全天") ? 1.0 : 0.5;
+                            stats[item.type] = (stats[item.type] || 0) + weight;
+                        }
+                    });
+                    let statsHtml = '<div style="background:#f9f9f9; padding:10px; border-radius:10px; margin-bottom:10px; display:flex; flex-wrap:wrap; gap:5px;">';
+                    for (const [k, v] of Object.entries(stats)) statsHtml += `<span style="font-size:0.8em; background:#fff; padding:2px 8px; border-radius:5px; border:1px solid #eee;">${k}: ${v}</span>`;
+                    statsHtml += '</div>';
+
+                    let tableHtml = '<table style="width:100%; font-size:0.85em;">';
+                    res.data.forEach(item => {
+                        let color = item.status === "核准" ? "green" : (item.status === "退回" ? "red" : "orange");
+                        tableHtml += `<tr style="border-bottom:1px solid #eee;">
+                            <td style="padding:5px 0;">${item.date}<br><small>${item.shift}</small></td>
+                            <td style="text-align:center;">${item.type}</td>
+                            <td style="text-align:right; color:${color}; font-weight:bold;">${item.status}</td>
+                        </tr>`;
+                    });
+                    listArea.append(statsHtml + tableHtml + '</table>');
+                }
+                $('#leaveModal').removeClass('hidden');
+            }
+        } catch (e) { alert("連線失敗"); }
+        finally { toggleLoading(false); }
+    }
+
+    async function showAttendanceHistory() {
+        toggleLoading(true);
+        try {
+            const resp = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "getAttendanceRecords", empId: currentUser.empId })
+            });
+            const res = await resp.json();
+            if (res.status === "success") {
+                const listArea = $('#attendanceList').empty();
+                if (res.data.length === 0) listArea.append('<p>尚無紀錄</p>');
+                else {
+                    let html = '<div style="max-height:350px; overflow-y:auto;"><table style="width:100%; font-size:0.85em; border-collapse:collapse;">';
+                    res.data.forEach(log => {
+                        html += `<tr style="border-bottom:1px solid #f5f5f5;"><td style="padding:8px 0;">${log.date}</td><td><b>${log.type}</b></td><td style="text-align:right;">${log.time}</td></tr>`;
+                    });
+                    html += '</table></div>';
+                    listArea.append(html);
+                }
+                $('#attendanceModal').removeClass('hidden');
+            }
+        } catch (e) { alert("讀取失敗"); }
+        finally { toggleLoading(false); }
+    }
+
+    function requireSalaryPin() {
+        const check = prompt("【安全驗證】請再次輸入您的登入密碼：");
+        if (check === currentUser.pin) { openModule('salary_admin'); }
+        else if (check !== null) { alert("密碼錯誤"); }
+    }
+
+    function openModule(pageName) {
+        toggleLoading(true);
+        const url = `${pageName}.html?empId=${currentUser.empId}&name=${encodeURIComponent(currentUser.name)}&role=${currentUser.role}&t=${new Date().getTime()}`;
+        window.location.href = url;
+    }
+
+    function logout() { 
+        sessionStorage.removeItem('clinicUser');
+        currentUser = null; 
+        window.location.reload(); 
+    }
+    
+    function showError(m) { $('#msg').text(m); }
+    function closeHistoryModal() { $('#historyModal').addClass('hidden'); }
+
+    function startIdleTimer() {
+        const resetTimer = () => {
+            clearTimeout(idleTimer);
+            idleTimer = setTimeout(() => { if (currentUser) logout(); }, 600000); // 延長至10分鐘 
+        };
+        $(document).on('mousemove keypress mousedown touchstart', resetTimer);
+        resetTimer();
+    }
+</script>
+</body>
+</html>

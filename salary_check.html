@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>薪資明細核對系統</title>
+  <style>
+    :root { --primary: #2c3e50; --secondary: #34495e; --accent: #27ae60; --danger: #e74c3c; --info: #3498db; --warning: #f39c12; --bg-gray: #f4f7f6; }
+    body { font-family: "PingFang TC", "Heiti TC", "Microsoft JhengHei", sans-serif; background: var(--bg-gray); margin: 0; padding: 15px; color: #333; line-height: 1.5; }
+    .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); display: none; }
+    
+    h2 { text-align: center; color: var(--primary); border-bottom: 2px solid var(--primary); padding-bottom: 10px; margin-top: 0; }
+    h3 { border-left: 5px solid var(--info); padding-left: 10px; margin-top: 25px; font-size: 1.1em; color: var(--secondary); }
+    
+    /* 頂部資訊卡 */
+    .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px; }
+    .info-item label { font-size: 0.85em; color: #666; display: block; }
+    .info-item span { font-weight: bold; font-size: 1.1em; }
+
+    /* 實領金額大字報 */
+    .net-pay-box { background: #e8f5e9; border-radius: 8px; border: 1px solid var(--accent); padding: 20px; text-align: center; margin-bottom: 20px; }
+    .net-pay-box .label { font-size: 1em; color: #666; margin-bottom: 5px; }
+    .net-pay-box .val { font-size: 2.2em; font-weight: bold; color: var(--accent); }
+
+    /* 出勤與假別統計卡片 */
+    .stats-container { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px; margin-bottom: 20px; }
+    .stat-card { background: #fff; border: 1px solid #eee; padding: 12px 8px; border-radius: 8px; text-align: center; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+    .stat-card .label { font-size: 0.75em; color: #888; display: block; margin-bottom: 4px; }
+    .stat-card .val { font-size: 1.2em; font-weight: bold; color: var(--secondary); }
+    .stat-card small { font-size: 0.7em; margin-left: 2px; }
+
+    /* 薪資組成區塊 */
+    .detail-section { border: 1px solid #eee; border-radius: 8px; overflow: hidden; margin-bottom: 20px; }
+    .detail-header { background: #f8f9fa; padding: 10px 15px; font-weight: bold; border-bottom: 1px solid #eee; font-size: 0.95em; }
+    .detail-row { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-bottom: 1px dashed #eee; font-size: 0.95em; }
+    .detail-row:last-child { border-bottom: none; }
+    .text-plus { color: var(--accent); font-weight: bold; }
+    .text-minus { color: var(--danger); font-weight: bold; }
+    .item-memo { display: block; font-size: 0.8em; color: #999; font-weight: normal; }
+
+    /* 考勤表格 */
+    .table-wrapper { overflow-x: auto; border: 1px solid #eee; border-radius: 8px; }
+    table { width: 100%; border-collapse: collapse; font-size: 0.88em; min-width: 500px; }
+    th { background: var(--secondary); color: white; padding: 12px 10px; text-align: left; }
+    td { padding: 12px 10px; border-bottom: 1px solid #eee; vertical-align: middle; }
+    tr:nth-child(even) { background-color: #fafafa; }
+    
+    .time-slot { font-family: monospace; font-size: 1.1em; color: #555; line-height: 1.3; }
+    .badge { padding: 3px 7px; border-radius: 4px; font-size: 0.75em; font-weight: bold; white-space: nowrap; margin-right: 3px; }
+    .badge-late { background: #fff0f0; color: var(--danger); border: 1px solid #ffcaca; }
+    .badge-ot { background: #f0fff4; color: var(--accent); border: 1px solid #c6f6d5; }
+    .badge-warning { background: #fff7ed; color: #c2410c; border: 1px solid #fed7aa; }
+    .badge-leave { background: #e3f2fd; color: #1565c0; border: 1px solid #bbdefb; }
+    .badge-normal { background: #f8f9fa; color: #999; border: 1px solid #ddd; }
+
+    /* 操作區 */
+    .action-area { margin-top: 30px; text-align: center; padding: 25px; border-top: 2px dashed #eee; }
+    .btn { padding: 14px 40px; font-size: 1.1em; border: none; border-radius: 50px; cursor: pointer; transition: 0.3s; width: 100%; max-width: 320px; box-sizing: border-box; /* 加入這行確保 padding 不撐破寬度 */}
+    .btn-confirm { background: var(--accent); color: white; font-weight: bold; box-shadow: 0 4px 10px rgba(39, 174, 96, 0.3); }
+    .btn-confirm:hover { transform: translateY(-2px); box-shadow: 0 6px 15px rgba(39, 174, 96, 0.4); }
+    .btn-download { background: var(--primary); color: white; text-decoration: none; display: inline-block; margin-top: 15px; }
+	
+	/* 新增：手機端自動縮小按鈕與字體 */
+@media (max-width: 480px) {
+  .btn {
+    padding: 10px 20px;
+    font-size: 0.95em;
+    max-width: 100%; /* 讓它在手機上滿版但受限於 container padding */
+  }
+  .btn-download {
+    margin-top: 10px;
+  }
+}
+
+    #loading { position: fixed; top:0; left:0; width:100%; height:100%; background:rgba(255,255,255,0.85); display: flex; justify-content:center; align-items:center; z-index:999; flex-direction: column; gap: 10px; }
+    .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--info); border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+
+<div id="loading">
+  <div class="spinner"></div>
+  <div id="loadingText">安全性驗證中...</div>
+</div>
+
+<div class="container" id="mainContainer">
+<div style="display: flex; justify-content: flex-start; margin-bottom: 10px;">
+    <button onclick="goBackMenu()" style="background: #6c757d; color: white; border: none; padding: 6px 15px; border-radius: 6px; cursor: pointer; font-size: 0.9em;">🏠 返回主選單</button>
+  </div>
+  <h2>薪資明細核對</h2>
+  
+  <div class="info-grid">
+    <div class="info-item"><label>核對月份</label><span id="displayYM">----</span></div>
+    <div class="info-item"><label>員工姓名</label><span id="displayName">----</span></div>
+  </div>
+
+  <div class="net-pay-box">
+    <div class="label">本次實領總額</div>
+    <div class="val">NT$ <span id="netPay">0</span></div>
+  </div>
+
+  <h3>出勤與假別統計</h3>
+  <div class="stats-container" id="statsArea">
+    <div class="stat-card"><span class="label">本月累積遲到</span><span class="val" id="statLate">0</span><small>min</small></div>
+    <div class="stat-card"><span class="label">本月累積加班</span><span class="val" id="statOT">0</span><small>min</small></div>
+  </div>
+
+  <h3>薪資明細 (金額)</h3>
+  <div class="detail-section">
+    <div class="detail-header">【加項】應領項目</div>
+    <div id="plusItemsArea"></div>
+  </div>
+
+  <div class="detail-section">
+    <div class="detail-header">【減項】應扣項目</div>
+    <div id="minusItemsArea"></div>
+  </div>
+
+  <h3>出勤明細與打卡紀錄</h3>
+  <div class="table-wrapper">
+    <table id="attendanceTable">
+      <thead>
+        <tr>
+          <th width="20%">日期/診別</th>
+          <th width="25%">原始打卡</th>
+          <th width="25%">狀態與調整</th>
+          <th width="30%">備註</th>
+        </tr>
+      </thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div id="memoBlock" style="margin-top:20px; background:#fff9db; padding:12px; border-radius:8px; border:1px solid #ffe066; font-size:0.9em; display:none;">
+    <strong>結算總備註：</strong> <span id="totalMemo"></span>
+  </div>
+
+  <div class="action-area" id="actionArea"></div>
+</div>
+
+<script>
+  // 重要：更換為您的 GAS 網址
+  const GAS_URL = "https://script.google.com/macros/s/AKfycbyaLPGKpUpJP62KqfRgQbuPc-EaJWAAUpwJ8jeYI55eGqxh_kb6xgDGlcyeXyJjtnjdTw/exec";
+
+  let currentUser = {};
+  let currentYm = "";
+
+  window.onload = function() {
+    const params = new URLSearchParams(window.location.search);
+    currentUser = {
+        empId: params.get('empId'),
+        name: params.get('name')
+    };
+
+    // 1. 安全檢查
+    if (!currentUser.empId) {
+        alert("登入逾時，請重新登入");
+        window.location.href = "index.html";
+        return;
+    }
+
+    // 2. 月份自動判定：如果有帶 ym 用 ym，沒有的話自動抓「上個月」 (因為通常是結算上個月薪資)
+    if (params.get('ym')) {
+        currentYm = params.get('ym');
+    } else {
+        const now = new Date();
+        now.setMonth(now.getMonth() - 1); // 預設看上個月
+        currentYm = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    loadData();
+  };
+
+// 返回主選單並帶上原有參數
+function goBackMenu() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const empId = urlParams.get('empId');
+    const name = urlParams.get('name');
+    const role = urlParams.get('role');
+    
+    // 請將 menu.html 改為您主選單的實際檔名
+    window.location.href = `index.html?empId=${empId}&name=${encodeURIComponent(name)}&role=${encodeURIComponent(role)}`;
+}
+
+  async function loadData() {
+    toggleLoading(true, "讀取薪資資料中...");
+    try {
+      const resp = await fetch(GAS_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "getSalaryForAssistant", yearMonth: currentYm, empId: currentUser.empId })
+      });
+      const res = await resp.json();
+      if(res.status === "success") {
+        document.getElementById('mainContainer').style.display = 'block';
+        renderUI(res.data);
+      } else {
+        showError(res.message);
+      }
+    } catch (e) {
+      showError("連線失敗，請檢查網路。");
+    } finally {
+      toggleLoading(false);
+    }
+  }
+
+  function renderUI(data) {
+    document.getElementById('displayYM').innerText = currentYm;
+    document.getElementById('displayName').innerText = data.empName;
+    document.getElementById('netPay').innerText = Number(data.netPay).toLocaleString();
+    
+    // 1. 統計區
+    document.getElementById('statLate').innerText = data.totalLateMins || 0;
+    document.getElementById('statOT').innerText = data.totalOTMins || 0;
+    const statsArea = document.getElementById('statsArea');
+    const fixedCards = statsArea.querySelectorAll('.stat-card');
+    statsArea.innerHTML = '';
+    statsArea.appendChild(fixedCards[0]);
+    statsArea.appendChild(fixedCards[1]);
+
+    if(data.leaveSummary) {
+      Object.entries(data.leaveSummary).forEach(([name, val]) => {
+        if(val > 0) {
+          statsArea.innerHTML += `<div class="stat-card"><span class="label">${name}</span><span class="val">${val}</span><small>天</small></div>`;
+        }
+      });
+    }
+
+    // 2. 加項區
+    const plusArea = document.getElementById('plusItemsArea');
+    let plusHtml = `<div class="detail-row"><span>固定底薪</span><span class="text-plus">$${Number(data.basePay).toLocaleString()}</span></div>`;
+    if(data.otPay > 0) {
+      plusHtml += `<div class="detail-row"><span>加班津貼總計</span><span class="text-plus">+$${Number(data.otPay).toLocaleString()}</span></div>`;
+    }
+    if(data.additions && data.additions.length > 0) {
+      data.additions.forEach(item => {
+        if(item.name !== "底薪" && item.name !== "加班費") {
+           plusHtml += `<div class="detail-row">
+            <span>${item.name}<small class="item-memo">${item.memo || ''}</small></span>
+            <span class="text-plus">+$${Number(item.val).toLocaleString()}</span>
+           </div>`;
+        }
+      });
+    }
+    plusArea.innerHTML = plusHtml;
+
+    // 3. 減項區
+    const minusArea = document.getElementById('minusItemsArea');
+    let minusHtml = `
+      <div class="detail-row"><span>勞保自付額</span><span class="text-minus">-$${Number(data.labor).toLocaleString()}</span></div>
+      <div class="detail-row"><span>健保自付額</span><span class="text-minus">-$${Number(data.health).toLocaleString()}</span></div>
+    `;
+    if(data.lateDeduct > 0) {
+      minusHtml += `<div class="detail-row"><span>遲到扣款總計</span><span class="text-minus">-$${Number(data.lateDeduct).toLocaleString()}</span></div>`;
+    }
+    if(data.deductions && data.deductions.length > 0) {
+      data.deductions.forEach(item => {
+        if(!["勞保扣款", "健保扣款", "遲到扣款"].includes(item.name)) {
+          minusHtml += `<div class="detail-row">
+            <span>${item.name}<small class="item-memo">${item.memo || ''}</small></span>
+            <span class="text-minus">-$${Number(item.val).toLocaleString()}</span>
+          </div>`;
+        }
+      });
+    }
+    minusArea.innerHTML = minusHtml;
+
+    // 4. 表格區
+    const tbody = document.querySelector('#attendanceTable tbody');
+    tbody.innerHTML = "";
+    if(data.attendanceDetails && data.attendanceDetails.length > 0) {
+      data.attendanceDetails.forEach(row => {
+        let statusBadges = "";
+        if (row.status.includes("請假")) {
+          statusBadges = `<span class="badge badge-leave">${row.status}</span>`;
+        } else {
+          if (row.late > 0) statusBadges += `<span class="badge badge-late">遲到 ${row.late}m</span> `;
+          if (row.ot > 0) statusBadges += `<span class="badge badge-ot">加班 ${row.ot}m</span> `;
+          if (row.status.includes("缺")) statusBadges += `<span class="badge badge-warning">${row.status}</span> `;
+          if (!statusBadges) statusBadges = `<span class="badge badge-normal">正常</span>`;
+        }
+		const displayMemo = row.memo || "-";
+        const punchInfo = row.status.includes("請假") ? "---" : `上 ${row.actualIn}<br>下 ${row.actualOut}`;
+        tbody.innerHTML += `<tr>
+          <td>${row.date.substring(5)} (${row.shift})</td>
+          <td class="time-slot">${punchInfo}</td>
+          <td>${statusBadges}</td>
+          <td style="color:#666; font-size:0.85em; word-break: break-all;">${displayMemo}</td>
+        </tr>`;
+      });
+    } else {
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; color:#999; padding:20px;">本月無排班或考勤紀錄</td></tr>`;
+    }
+
+    // 5. 總備註
+    if(data.memo) {
+      document.getElementById('memoBlock').style.display = 'block';
+      document.getElementById('totalMemo').innerText = data.memo;
+    }
+
+    renderAction(data.confirmStatus, data.slipLink);
+  }
+
+  function renderAction(status, slipLink) {
+    const area = document.getElementById('actionArea');
+    if(status === "已確認") {
+      area.innerHTML = `
+        <div style="color:var(--accent); font-weight:bold; font-size:1.2em; margin-bottom:10px;">✅ 您已完成線上核對</div>
+        ${slipLink ? `<a class="btn btn-download" href="${slipLink}" target="_blank">查看正式薪資單圖檔</a>` : `<p style="color:#888; font-size:0.85em;">正式薪資條製作中</p>`}
+      `;
+    } else {
+      area.innerHTML = `
+        <p style="color:#d63031; font-size:0.9em; margin-bottom:15px;">※ 請核對打卡時間與金額，確認無誤後點擊按鈕。</p>
+        <button class="btn btn-confirm" onclick="doConfirm()">本人已核對明細，確認無誤</button>
+      `;
+    }
+  }
+
+  async function doConfirm() {
+    if(!confirm("確定薪資明細與打卡紀錄皆正確無誤嗎？")) return;
+    toggleLoading(true, "提交確認中...");
+    try {
+      const resp = await fetch(GAS_URL, {
+        method: "POST",
+        body: JSON.stringify({ action: "confirmSalary", yearMonth: currentYm, empId: currentUser.empId })
+      });
+      const res = await resp.json();
+      if(res.status === "success") {
+        alert("確認成功！");
+        location.reload();
+      } else {
+        alert("失敗：" + res.message);
+      }
+    } catch (e) {
+      alert("連線異常，請稍後再試。");
+    } finally {
+      toggleLoading(false);
+    }
+  }
+
+  function toggleLoading(show, text = "資料讀取中...") { 
+    document.getElementById('loading').style.display = show ? 'flex' : 'none'; 
+    document.getElementById('loadingText').innerText = text;
+  }
+function showError(msg) { 
+    document.getElementById('mainContainer').style.display = 'block';
+    document.getElementById('mainContainer').innerHTML = `
+        <div style="padding:40px; text-align:center; color:#666;">
+            <div style="font-size: 50px; margin-bottom: 20px;">📅</div>
+            <h3>目前查無結算資料</h3>
+            <p style="color: #999;">${msg}</p>
+            <button onclick="goBackMenu()" class="btn" style="background:#6c757d; color:white; margin-top:20px;">返回主選單</button>
+        </div>`; 
+}
+</script>
+
+</body>
+</html>

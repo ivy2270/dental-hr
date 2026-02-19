@@ -1,0 +1,720 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>牙醫診所週排班系統 - 專業管理版</title>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+<style>
+    :root { 
+        --primary: #007bff; --success: #28a745; --error: #dc3545; --border: #dee2e6; 
+        --morning: #007bff; --afternoon: #28a745; --evening: #fd7e14;
+        --dr-bg: #495057; --staff-bg: #28a745; --view-bg: #fdf6e3;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; margin: 0; background: #f0f2f5; display: flex; height: 100vh; overflow: hidden; }
+    
+    /* --- 側邊欄 (桌機預設) --- */
+    .sidebar { width: 190px; background: white; border-right: 1px solid var(--border); padding: 12px; flex-shrink: 0; display: flex; flex-direction: column; z-index: 100; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
+    .staff-item { padding: 8px; margin-bottom: 8px; background: #fff; border: 1px solid #ddd; border-radius: 6px; cursor: grab; font-size: 13px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: background 0.2s; }
+    .staff-item:hover { background: #f8f9fa; border-color: var(--primary); }
+    .staff-header { display: flex; justify-content: space-between; align-items: center; }
+    .count-badge { color: white; border-radius: 3px; padding: 1px 4px; font-size: 10px; font-weight: bold; }
+    .bg-safe { background: var(--success); }
+    .bg-danger { background: var(--error); }
+    .bg-neutral { background: #adb5bd; }
+    .leave-warn { color: var(--error); font-size: 10px; display: block; margin-top: 2px; font-weight: bold; }
+
+    /* --- 主區域 (桌機預設) --- */
+    .main-content { flex-grow: 1; padding: 12px; display: flex; flex-direction: column; overflow-x: auto; }
+    .version-bar { background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid var(--border); display: flex; align-items: center; gap: 10px; overflow-x: auto; white-space: nowrap; flex-shrink: 0; }
+    .ver-btn { padding: 5px 12px; font-size: 11px; background: #f8f9fa; border: 1px solid #ccc; border-radius: 20px; cursor: pointer; flex-shrink: 0; transition: all 0.2s; }
+    .ver-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    .ver-btn.active { background: #ffc107; border-color: #ffc107; font-weight: bold; color: #000; }
+
+    /* --- 班表容器 (桌機橫排) --- */
+    .weekly-container { display: flex; gap: 10px; flex-grow: 1; width: 100%; }
+    .day-column { width: calc(100% / 6); background: #fff; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; min-width: 165px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+    .day-header { background: #343a40; color: white; padding: 10px 5px; text-align: center; font-size: 14px; font-weight: bold; border-top-left-radius: 7px; border-top-right-radius: 7px; }
+    .day-header small { font-size: 10px; display: block; opacity: 0.8; margin-top: 2px; font-weight: normal; }
+    .day-content { display: block; } /* 桌機版預設全開 */
+    
+    .read-only-mode .day-column { background: var(--view-bg); }
+
+    /* 診次樣式 */
+    .shift-section { padding: 6px; border-left: 4px solid #ddd; margin-bottom: 5px; }
+    .shift-morning { border-left-color: var(--morning); background: rgba(0,123,255,0.02); }
+    .shift-afternoon { border-left-color: var(--success); background: rgba(40,167,69,0.02); }
+    .shift-evening { border-left-color: var(--evening); background: rgba(253,126,20,0.02); }
+    .shift-title { font-size: 11px; font-weight: 800; color: #666; display: flex; justify-content: space-between; padding: 2px 4px; margin-bottom: 4px; }
+    
+    .slot-box { margin-bottom: 4px; border: 1px solid #e9ecef; border-radius: 4px; background: #fff; display: flex; align-items: stretch; overflow: hidden; min-height: 40px; }
+    .dr-name-label { width: 45px; background: #f8f9fa; color: #333; padding: 4px; font-weight: bold; font-size: 11px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; line-height: 1.2; border-right: 1px solid #e9ecef; flex-shrink: 0; position: relative; }
+    .slot-disabled { opacity: 0.6; background: #f1f3f5 ; }
+
+    .drop-zone { flex-grow: 1; min-height: 38px; padding: 4px; display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; }
+    .staff-tag { background:var(--staff-bg); color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; display: flex; align-items: center; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+    .remove { cursor: pointer; margin-left: 5px; font-weight: bold; font-size: 14px; }
+
+    .day-leave-area { background: #f8f9fa; padding: 8px; font-size: 11px; border-top: 1px solid var(--border); height: 90px; overflow-y: auto; }
+    .leave-title { font-size: 10px; color: #adb5bd; font-weight: bold; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .leave-item { color: #495057; padding: 2px 0; border-bottom: 1px solid #eee; }
+
+    /* 公用元件 */
+    button { font-size: 12px; cursor: pointer; border-radius: 6px; border: none; transition: opacity 0.2s; }
+    button:active { opacity: 0.7; }
+    .btn-main { background: var(--primary); color: white; padding: 10px; font-weight: bold; width: 100%; margin-top: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+    /* Overlay 樣式 */
+    #loadingOverlay { position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 10001; display: none; flex-direction: column; justify-content: center; align-items: center; }
+    .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    #loginOverlay { position: fixed; inset: 0; background: #212529; z-index: 9999; display: flex; justify-content: center; align-items: center; }
+    .login-card { background: white; padding: 25px; border-radius: 16px; width: 300px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    .pattern-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+    .dot { width: 55px; height: 55px; background: #f0f0f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; transition: all 0.2s; }
+    .dot.active { background: var(--primary); color: white; transform: scale(1.1); }
+
+    #copyModal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10002; display: none; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
+    .modal-body { background: white; padding: 25px; border-radius: 12px; width: 320px; max-height: 80vh; overflow-y: auto; }
+
+    /* =========================================
+       手機版 RWD 優化 (螢幕寬度 < 768px)
+       ========================================= */
+    @media (max-width: 768px) {
+        body { flex-direction: column; }
+        
+        .main-content { 
+            flex: 1; height: auto; overflow-y: auto; 
+            padding: 10px; padding-bottom: 250px; /* 預留底部空間 */
+            display: flex; flex-direction: column; 
+        }
+
+        /* 歷史快照橫幅不縮小 */
+        .view-banner { flex-shrink: 0; }
+        .version-bar { flex-shrink: 0; min-height: 60px; margin: 0 0 10px 0; }
+
+        /* 底部固定側邊欄 */
+        .sidebar { 
+            width: 100%; height: auto; position: fixed; bottom: 0; left: 0; 
+            background: #fff; padding: 10px; z-index: 1001; 
+            box-shadow: 0 -3px 10px rgba(0,0,0,0.1); 
+            display: flex; flex-direction: column; 
+        }
+
+        /* 隱藏手機版標題 */
+        #adminInfo, .sidebar > div:first-child { display: none ; }
+
+/* 助理池 (最上層) 修正 */
+        #staffPool { 
+            display: flex; 
+            flex-direction: row; 
+            gap: 8px; 
+            overflow-x: auto; 
+            height: 60px; /* 稍微增加高度避免捲軸遮擋 */
+            flex-shrink: 0; 
+            margin-bottom: 5px;
+            padding-bottom: 4px; /* 留出空間給捲軸 */
+			overflow-x: auto; 
+            overflow-y: hidden; 
+            /* 3. 隱藏不同瀏覽器的滾動條（選配，讓介面更乾淨） */
+            scrollbar-width: none; /* Firefox */
+            -ms-overflow-style: none; /* IE/Edge */
+            -webkit-overflow-scrolling: touch; /* 讓手機滑動更順暢 */
+        }
+		/* 隱藏 Chrome/Safari 的滾動條 */
+        #staffPool::-webkit-scrollbar {
+            display: none;
+        }
+        
+        .staff-item { 
+            min-width: 110px; /* 從 90px 增加到 110px，確保兩字名字與標籤並列 */
+            flex-shrink: 0;
+            height: 40px; 
+            margin-bottom: 0; 
+            display: flex; 
+            align-items: center; 
+            font-size: 13px; 
+            white-space: nowrap; /* 強制不換行 */
+            padding: 0 8px;
+			box-sizing: border-box;
+        }
+		.count-badge {
+            font-size: 9px;
+            padding: 1px 3px;
+            line-height: 1;
+        }
+
+        /* 確保助理池內的文字與數字在一行內 */
+        .staff-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* 月曆容器 (中間) */
+        #datePickerContainer { margin: 5px 0; padding: 5px ; display: block; }
+        
+/* 按鈕區 (最下層) 修正 */
+        .sidebar > div:last-child { 
+            display: flex; 
+            gap: 5px; 
+            margin-top: 5px; 
+            align-items: stretch; /* 強制子元素(按鈕)拉伸填滿高度 */
+        }
+
+        .btn-main { 
+            margin-top: 0 !important; 
+            flex: 1; 
+            height: 42px; /* 明確指定高度，確保三個按鈕一模一樣高 */
+            padding: 0 5px; /* 減少內距，讓文字在窄螢幕也能顯示 */
+            font-size: 12px; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1.2;
+            white-space: normal; /* 若按鈕字數過多，允許內部換行但維持總高度 */
+        }
+
+        /* 班表垂直排列與折疊 */
+        .weekly-container { flex-direction: column; }
+        .day-column { width: 100%; min-width: unset; margin-bottom: 10px; }
+        .day-content { display: none; } /* 手機版預設隱藏 */
+        .day-column.active .day-content { display: block; }
+
+        /* 箭頭垂直置中 */
+        .day-header { cursor: pointer; position: relative; padding: 15px; }
+        .day-header::after { 
+            content: '▼'; position: absolute; right: 20px; 
+            top: 50%; transform: translateY(-50%); 
+            font-size: 12px; opacity: 0.5; 
+        }
+        .day-column.active .day-header::after { content: '▲'; }
+        
+        .dr-name-label { width: 55px; font-size: 12px; }
+    }
+</style>
+</head>
+<body id="appBody">
+
+<div id="loadingOverlay"><div class="spinner"></div><p>處理中...</p></div>
+
+<div id="copyModal">
+    <div class="modal-body">
+        <h4 style="margin-top:0;">選擇歷史週版本</h4>
+        <div id="copyVersionList"></div>
+        <button onclick="document.getElementById('copyModal').style.display='none'" style="margin-top:15px; width:100%; padding:10px; background:#6c757d; color:white;">取消</button>
+    </div>
+</div>
+
+<div class="sidebar">
+    <div id="adminInfo" style="font-size:14px; margin-bottom:10px; color:var(--primary); font-weight:bold; text-align:center;"></div>
+    
+    <div id="staffPool" style="flex-grow: 1; overflow-y: auto;"></div>
+
+    <div id="datePickerContainer" style="background:#f8f9fa; padding:10px; border-radius:8px; margin-top:10px; border:1px solid #eee;">
+        <label style="font-size:10px; color:#999; display:block; margin-bottom:4px;">選擇週一日期</label>
+        <input type="date" id="mondayPicker" onchange="fetchData()" style="width:100%; font-size:13px; border:1px solid #ddd; padding:5px; border-radius:4px;">
+    </div>
+    
+    <div style="margin-top:10px;">
+        <button onclick="openCopyModal()" class="btn-main" style="background:#6f42c1; margin-bottom:8px;">從歷史週複製</button>
+        <button id="btnSave" onclick="saveSchedule()" class="btn-main" style="background:var(--success)">發佈班表</button>
+        <button id="btnExitView" onclick="fetchData()" class="btn-main" style="background:var(--error); display:none;">結束預覽</button>
+		<button onclick="window.location.href='index.html'" class="btn-main" style="background:#6c757d;">⬅ 返回系統選單</button>
+    </div>
+</div>
+
+<div class="main-content">
+    <div class="view-banner" id="viewBanner" style="background:#ffc107; text-align:center; font-weight:bold; padding:6px; border-radius:4px; margin-bottom:10px; font-size:13px; display:none;">⚠️ 目前正在查看歷史版本（唯讀）</div>
+    <div class="version-bar" id="versionSlider">
+        <span style="font-size:12px; font-weight:bold; color:#555;">本週快照：</span>
+        <div id="verButtons" style="display:flex; gap:8px;"></div>
+    </div>
+    <div class="weekly-container" id="weeklyGrid"></div>
+</div>
+
+<script>
+    // JS 邏輯完全保留，修復顏色顯示 Bug 與醫師深灰色標籤
+    const webAppUrl = "https://script.google.com/macros/s/AKfycbxIzIUEMUkN2iWjKnYbdq-6znGrxFF7gajztQnSrsWto9BeeT-c98yooTk75OPMP7Qitw/exec";
+    let appData = null;
+    let currentUser = null;
+    let isReadOnly = false;
+    let sortables = [];
+
+    // --- 工具函數 ---
+
+    function showLoading(show) { document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none'; }
+
+    function formatDate(d) {
+        if(!d) return "";
+        const date = new Date(d);
+        return isNaN(date.getTime()) ? d : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+
+    // 根據助理 ID 產生固定且美觀的 HSL 顏色
+function getStaffColor(empId) {
+    if (!empId) return '#adb5bd';
+    const str = String(empId);
+    let hash = 0;
+    
+    // 1. 使用質數 31 來放大字元間的差異
+    for (let i = 0; i < str.length; i++) {
+        hash = (hash * 31) + str.charCodeAt(i);
+        hash = hash & hash; // 轉為 32位元整數
+    }
+
+    // 2. 使用「黃金比例推導出的數值」來分佈色相，這能讓相鄰的 ID 跳轉到完全不同的色區
+    // 137.5 度是著名的黃金角度，能有效打散顏色
+    const h = Math.abs(hash * 137.5) % 360;
+    
+    // 3. 稍微調整亮度，讓顏色更有層次感
+    return `hsl(${h}, 65%, 40%)`;
+}
+    // 醫師請假檢查
+    function checkDrLeave(n, d, sh) { 
+        if (!appData || !appData.drLeaves) return null;
+        const leave = appData.drLeaves.slice(1).find(l => 
+            l[1] === n && 
+            formatDate(l[2]) === d && 
+            (l[3] === sh || l[3] === '全天')
+        );
+        return leave ? leave[4] : null; 
+    }
+
+    // 助理請假檢查
+    function checkStaffLeave(empId, dateStr, currentShift) {
+        if (!appData.staffLeaves) return null;
+        const leave = appData.staffLeaves.slice(1).find(l => {
+            const isSameId = l[0].toString() === empId.toString();
+            const isSameDate = formatDate(l[2]) === dateStr;
+            const leaveShift = l[3]; 
+            const isSameShift = (leaveShift === currentShift || leaveShift === '全天');
+            return isSameId && isSameDate && isSameShift;
+        });
+        return leave ? `${leave[3]}:${leave[4]}` : null; 
+    }
+
+    // --- 系統核心流程 ---
+
+    function initSystem() {
+        const today = new Date();
+        const diff = today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1);
+        const monday = new Date(today.setDate(diff));
+        document.getElementById('mondayPicker').value = formatDate(monday);
+        fetchData();
+    }
+
+    async function fetchData() {
+        showLoading(true);
+        isReadOnly = false;
+        toggleViewMode(false);
+        const monday = document.getElementById('mondayPicker').value;
+        try {
+            const res = await fetch(webAppUrl, { method: "POST", body: JSON.stringify({ action: "getScheduleInitData", targetMonday: monday }) });
+            appData = await res.json();
+            renderStaffPool(); 
+            renderSchedule();
+            fetchSnapshots(monday);
+        } finally { showLoading(false); }
+    }
+
+    function renderSchedule() {
+        const currentWeekDates = appData.weekDates.map(d => formatDate(d));
+        const hasSavedData = appData.liveSchedule && appData.liveSchedule.length > 1 && 
+            appData.liveSchedule.slice(1).some(row => {
+                const rowDate = formatDate(row[0]);
+                return currentWeekDates.includes(rowDate) && row[2] !== "";
+            });
+
+        const grid = document.getElementById('weeklyGrid');
+        const shifts = [ {n: "早", c: "morning"}, {n: "午", c: "afternoon"}, {n: "晚", c: "evening"} ];
+        const dayNames = ["週一", "週二", "週三", "週四", "週五", "週六"];
+        sortables = []; 
+
+        grid.innerHTML = appData.weekDates.map((dateStr, i) => {
+            const currentFormattedDate = formatDate(dateStr);
+            const holiday = appData.holidays ? appData.holidays.find(h => formatDate(h[0]) === currentFormattedDate) : null;
+            const isClinicClosed = holiday && holiday[2] === 'No';
+
+            return `
+                <div class="day-column" onclick="handleDayClick(this)">
+                    <div class="day-header">${dayNames[i]}<small>${currentFormattedDate}</small></div>
+                    <div class="day-content">
+                        <div style="flex-grow:1; overflow-y:auto; padding:4px;">
+                            ${isClinicClosed ? '<div style="text-align:center; padding:30px; color:#adb5bd; font-size:13px;">🏨 本日休診</div>' : 
+                              shifts.map(sh => `
+                                <div class="shift-section shift-${sh.c}" data-date="${currentFormattedDate}" data-shift="${sh.n}">
+                                    <div class="shift-title">
+                                        <span>${sh.n}診</span>
+                                        <button style="color:var(--primary); background:none; font-weight:bold; padding:0;" onclick="event.stopPropagation(); addExtraSlotPrompt(${i+1},'${sh.n}','${currentFormattedDate}')">+ 加診</button>
+                                    </div>
+                                    <div class="slot-container">${renderSlots(i+1, sh.n, currentFormattedDate, hasSavedData)}</div>
+                                </div>
+                              `).join('')}
+                        </div>
+                        <div class="day-leave-area">${renderDayLeaves(currentFormattedDate)}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        initSortable();
+        fillExistingData();
+        updateCounts();
+    }
+
+    function renderSlots(day, shift, dateStr, hasSavedData) {
+        const slots = appData.template.slice(1).filter(t => t[1] == day && t[2] == shift);
+        const empMap = {}; 
+        appData.employees.forEach(e => empMap[e[0]] = e[1]);
+
+        return slots.map(s => {
+            const drName = s[4];
+            const pos = s[5];
+            const defaultId = s[6];
+            const isPublic = s[3] !== "醫師連動";
+            const leaveReason = checkDrLeave(drName, dateStr, shift[0]); 
+            
+            let defaultStaffTag = "";
+            if (defaultId && !leaveReason && !hasSavedData) {
+                const staffColor = getStaffColor(defaultId);
+                defaultStaffTag = `
+                    <div class="staff-tag" data-id="${defaultId}" style="background-color: ${staffColor}; color: white ; border: none ;">
+                        ${empMap[defaultId] || defaultId} 
+                        <span class="remove" onclick="this.parentElement.remove(); updateCounts();">×</span>
+                    </div>`;
+            }
+            return createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift, false, defaultStaffTag);
+        }).join('');
+    }
+
+    function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift, isExtra, defaultTag = "") {
+        const isDisabled = !isPublic && leaveReason !== null;
+        // 修正：isPublic 為 false 時為醫師診位，套用深灰色 --dr-bg
+        const labelStyle = isPublic 
+            ? 'background:#e9ecef; color:#666;' 
+            : 'background:var(--dr-bg); color:white;';
+
+        return `
+            <div class="slot-box ${isDisabled ? 'slot-disabled' : ''}">
+                <div class="dr-name-label" style="${labelStyle} position:relative;">
+                    <span>${isPublic ? pos : drName}</span>
+                    ${isDisabled ? `<span class="dr-leave-note" style="font-size:9px; color:var(--error); margin-top:2px; font-weight:normal;">${leaveReason}</span>` : ''}
+                    ${isExtra ? `<span class="remove" onclick="this.closest('.slot-box').remove(); updateCounts();" style="position:absolute; top:0; right:2px; color:red; cursor:pointer;">×</span>` : ''}
+                </div>
+                <div class="drop-zone" 
+                     data-active="${!isDisabled}" 
+                     data-date="${dateStr}" 
+                     data-shift="${shift}" 
+                     data-pos="${pos}" 
+                     data-dr="${drName}">${defaultTag}</div>
+            </div>
+        `;
+    }
+
+    function renderStaffPool() {
+        const pool = document.getElementById('staffPool');
+        const assistants = appData.employees.slice(1).filter(e => e[2] === "助理");
+        const selectedDate = document.getElementById('mondayPicker').value;
+
+        pool.innerHTML = assistants.map(a => {
+            const leaveType = checkStaffLeave(a[0], selectedDate, '全天');
+            const staffColor = getStaffColor(a[0]);
+            return `
+                <div class="staff-item" data-id="${a[0]}" style="border-left: 6px solid ${staffColor} ;">
+                    <div class="staff-header">
+                        <div>
+                            <strong>${a[1]}</strong>
+                            ${leaveType ? `<span class="leave-warn">休:${leaveType}</span>` : ''}
+                        </div>
+                        <div class="count-row" style="text-align:right">
+                            <span class="count-badge bg-neutral" id="month-count-${a[0]}">M:?</span>
+                            <span class="count-badge" id="week-count-${a[0]}">W:0</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        new Sortable(pool, { group: { name: 'shared', pull: 'clone', put: false }, animation: 150, sort: false });
+    }
+
+    // --- 拖放邏輯 ---
+
+    function initSortable() { document.querySelectorAll('.drop-zone').forEach(el => initSortableOnElement(el)); }
+    
+    function initSortableOnElement(el) {
+        if (!el || el.dataset.active !== "true") return;
+        const s = new Sortable(el, {
+            group: 'shared', 
+            animation: 150, 
+            disabled: isReadOnly,
+            onAdd: (evt) => {
+                const id = evt.item.dataset.id;
+                const date = el.dataset.date;
+                const shift = el.dataset.shift;
+                const name = evt.item.querySelector('strong')?.innerText || evt.item.innerText.replace('×', '').trim();
+
+                // 1. 重複排班偵測
+                const allZonesInShift = document.querySelectorAll(`.drop-zone[data-date="${date}"][data-shift="${shift}"]`);
+                let existsElsewhere = false;
+                allZonesInShift.forEach(zone => {
+                    if (zone !== el && zone.querySelector(`[data-id="${id}"]`)) existsElsewhere = true;
+                    if (zone === el && zone.querySelectorAll(`[data-id="${id}"]`).length > 1) existsElsewhere = true;
+                });
+
+                if (existsElsewhere) {
+                    alert(`警告：${name} 在 ${date} ${shift}診 已經排過班了！`);
+                    evt.item.remove();
+                    updateCounts();
+                    return;
+                }
+
+                // 2. 請假偵測
+                const leaveInfo = checkStaffLeave(id, date, shift); 
+                if (leaveInfo) {
+                    alert(`防呆：${name} 在 ${date} 有請假設定 (${leaveInfo})！`);
+                    evt.item.remove();
+                    updateCounts();
+                    return;
+                }
+
+                // 3. 樣式轉換：拖入時設定背景顏色
+                if (evt.item.classList.contains('staff-item')) {
+                    const staffColor = getStaffColor(id);
+                    evt.item.className = 'staff-tag';
+                    evt.item.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
+                    evt.item.innerHTML = `${name} <span class="remove" onclick="this.parentElement.remove(); updateCounts();">×</span>`;
+                }
+                updateCounts();
+            },
+            onEnd: updateCounts
+        });
+        sortables.push(s);
+    }
+
+    // --- 資料填充與存檔 ---
+
+    function fillExistingData() {
+        if (!appData.liveSchedule || appData.liveSchedule.length <= 1) return;
+        const empMap = {}; appData.employees.forEach(e => empMap[e[0]] = e[1]);
+        appData.liveSchedule.slice(1).forEach(row => {
+            const date = formatDate(row[0]), shift = row[1], id = row[2], pos = row[3], dr = row[4];
+            let zone = document.querySelector(`.drop-zone[data-date="${date}"][data-shift="${shift}"][data-pos="${pos}"][data-dr="${dr}"]`);
+            if (!zone && pos === "加診醫師") {
+                addExtraSlot(0, shift, date, dr, "加診醫師", true);
+                zone = document.querySelector(`.drop-zone[data-date="${date}"][data-shift="${shift}"][data-pos="${pos}"][data-dr="${dr}"]`);
+            }
+            if (zone && id) {
+                const staffColor = getStaffColor(id);
+                const tag = document.createElement('div'); 
+                tag.className='staff-tag'; 
+                tag.dataset.id=id; 
+                tag.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
+                tag.innerHTML = `${empMap[id] || id} ${!isReadOnly ? '<span class="remove" onclick="this.parentElement.remove(); updateCounts();">×</span>' : ''}`;
+                zone.appendChild(tag);
+            }
+        });
+        updateCounts();
+    }
+
+    async function saveSchedule() {
+        if(isReadOnly) return;
+        const data = [];
+        document.querySelectorAll('.drop-zone').forEach(zone => {
+            zone.querySelectorAll('.staff-tag').forEach(tag => {
+                data.push({ 
+                    date: zone.dataset.date, shift: zone.dataset.shift, 
+                    dr: zone.dataset.dr, pos: zone.dataset.pos, empId: tag.dataset.id 
+                });
+            });
+        });
+        if(data.length === 0 && !confirm("目前沒有排任何班，確定要發佈嗎？")) return;
+        if(!confirm("確定發佈本週班表？")) return;
+        showLoading(true);
+        try {
+            const res = await fetch(webAppUrl, { 
+                method: "POST", 
+                body: JSON.stringify({ 
+                    action: "saveWeeklySchedule", 
+                    targetMonday: document.getElementById('mondayPicker').value, 
+                    data, operator: currentUser.name 
+                }) 
+            });
+            const result = await res.json();
+            alert(result.message);
+            fetchData();
+        } catch(e) { alert("儲存失敗"); }
+        finally { showLoading(false); }
+    }
+
+    // --- 快照與版本管理 ---
+
+    function loadDataIntoUI(data) {
+        document.querySelectorAll('.drop-zone').forEach(z => z.innerHTML = '');
+        const empMap = {}; appData.employees.forEach(e => empMap[e[0]] = e[1]);
+        const currentWeekDates = appData.weekDates.map(d => formatDate(d));
+
+        data.forEach(item => {
+            const sDate = new Date(item.date);
+            const sDay = sDate.getDay() || 7; 
+            const tDate = currentWeekDates[sDay - 1];
+            let target = document.querySelector(`.drop-zone[data-date="${tDate}"][data-shift="${item.shift}"][data-dr="${item.dr}"][data-pos="${item.pos}"]`);
+            if(!target && item.pos === "加診醫師") {
+                addExtraSlot(sDay, item.shift, tDate, item.dr, "加診醫師", true);
+                target = document.querySelector(`.drop-zone[data-date="${tDate}"][data-shift="${item.shift}"][data-dr="${item.dr}"][data-pos="${item.pos}"]`);
+            }
+            if(target) {
+                const staffColor = getStaffColor(item.empId);
+                const tag = document.createElement('div'); 
+                tag.className='staff-tag'; 
+                tag.dataset.id = item.empId;
+                tag.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
+                tag.innerHTML = `${empMap[item.empId] || item.empId} ${!isReadOnly ? '<span class="remove" onclick="this.parentElement.remove(); updateCounts();">×</span>' : ''}`;
+                target.appendChild(tag);
+            }
+        });
+        updateCounts();
+    }
+
+    async function fetchSnapshots(targetMonday) {
+        try {
+            const res = await fetch(webAppUrl, { method: "POST", body: JSON.stringify({ action: "getSnapshots", targetMonday: targetMonday }) });
+            const snapshots = await res.json();
+            const displayList = [...snapshots].reverse();
+            const snapshotsWithV = displayList.map((s, idx) => ({ ...s, vName: `V${idx+1}` }));
+            snapshotsWithV.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+            const container = document.getElementById('verButtons');
+            container.innerHTML = snapshotsWithV.map(s => `
+                <button class="ver-btn" onclick='viewSnapshot(${JSON.stringify(s.content)}, "${s.timestamp}")'>
+                    ${s.vName}: ${new Date(s.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                </button>
+            `).join('') || '<span style="font-size:11px; color:#999;">暫無快照</span>';
+        } catch(e) { console.error("快照抓取失敗", e); }
+    }
+
+    async function openCopyModal() {
+        showLoading(true);
+        try {
+            const res = await fetch(webAppUrl, { method: "POST", body: JSON.stringify({ action: "getAllWeeksLastSnapshots" }) });
+            const list = await res.json();
+            const container = document.getElementById('copyVersionList');
+            container.innerHTML = list.map(s => `
+                <button class="btn-main" style="background:#f8f9fa; color:#333; border:1px solid #ddd; text-align:left; margin-bottom:8px;" 
+                    onclick='applyCopy(${JSON.stringify(s.content)})'>
+                    📅 ${s.monday} 最終版本
+                </button>
+            `).join('') || '無歷史版本';
+            document.getElementById('copyModal').style.display = 'flex';
+        } finally { showLoading(false); }
+    }
+
+    function applyCopy(content) {
+        if(!confirm("這將覆蓋目前編輯中的內容，確定嗎？")) return;
+        document.getElementById('copyModal').style.display = 'none';
+        isReadOnly = false;
+        toggleViewMode(false);
+        renderSchedule(); 
+        const data = typeof content === 'string' ? JSON.parse(content) : content;
+        loadDataIntoUI(data);
+    }
+
+    function viewSnapshot(content, ts) {
+        isReadOnly = true;
+        toggleViewMode(true, ts);
+        renderSchedule(); 
+        const data = typeof content === 'string' ? JSON.parse(content) : content;
+        loadDataIntoUI(data);
+    }
+
+    // --- UI 切換與其他功能 ---
+
+    function updateCounts() {
+        const counts = {};
+        document.querySelectorAll('.drop-zone .staff-tag').forEach(t => { if(t.dataset.id) counts[t.dataset.id] = (counts[t.dataset.id] || 0) + 1; });
+        appData.employees.slice(1).forEach(a => {
+            const empId = a[0], wBadge = document.getElementById(`week-count-${empId}`), mBadge = document.getElementById(`month-count-${empId}`);
+            const currentWeekUI = counts[empId] || 0;
+            if(wBadge) {
+                wBadge.innerText = `W:${currentWeekUI}`;
+                wBadge.className = 'count-badge ' + (currentWeekUI >= 10 ? 'bg-danger' : (currentWeekUI > 0 ? 'bg-safe' : 'bg-neutral'));
+            }
+            if(mBadge) {
+                const initialMonth = appData.monthStats[empId] || 0, savedInThisWeek = appData.thisWeekSavedCounts[empId] || 0;
+                mBadge.innerText = `M:${(initialMonth - savedInThisWeek) + currentWeekUI}`;
+            }
+        });
+    }
+
+    function toggleViewMode(readOnly, ts) {
+        const body = document.getElementById('appBody'), banner = document.getElementById('viewBanner');
+        const btnSave = document.getElementById('btnSave'), btnExit = document.getElementById('btnExitView');
+        if(readOnly) {
+            body.classList.add('read-only-mode');
+            banner.style.display = 'block';
+            banner.innerText = `⚠️ 歷史快照 (${new Date(ts).toLocaleString()})`;
+            btnSave.style.display = 'none'; btnExit.style.display = 'block';
+        } else {
+            body.classList.remove('read-only-mode');
+            banner.style.display = 'none';
+            btnSave.style.display = 'block'; btnExit.style.display = 'none';
+        }
+    }
+
+    function handleDayClick(el) {
+        if(window.innerWidth > 768) return;
+        document.querySelectorAll('.day-column').forEach(c => { if(c !== el) c.classList.remove('active'); });
+        el.classList.toggle('active');
+    }
+
+    function addExtraSlot(day, shift, dateStr, drName, pos, isExtra) {
+        const container = document.querySelector(`.shift-section[data-date="${dateStr}"][data-shift="${shift}"] .slot-container`);
+        if(!container) return;
+        const div = document.createElement('div');
+        div.innerHTML = createSlotHTML(drName, pos, false, null, dateStr, day, shift, isExtra);
+        const element = div.firstElementChild;
+        container.appendChild(element);
+        initSortableOnElement(element.querySelector('.drop-zone'));
+    }
+
+    function addExtraSlotPrompt(day, shift, dateStr) {
+        if(isReadOnly) return;
+        const dr = prompt("請輸入加診醫師姓名:"); 
+        if(dr && dr.trim() !== "") addExtraSlot(day, shift, dateStr, dr.trim(), "加診醫師", true);
+    }
+
+    function renderDayLeaves(dateStr) {
+        const list = appData.staffLeaves ? appData.staffLeaves.slice(1).filter(l => formatDate(l[2]) === dateStr) : [];
+        return `<div class="leave-title">助理休假</div>` + 
+               (list.length ? list.map(l => {
+                   return `<div class="leave-item"><b>${l[1]}</b> (${l[3]}:${l[4]})</div>`;
+               }).join('') : '<div class="leave-item" style="color:#ccc;">無</div>');
+    }
+
+    // --- 初始化 ---
+
+    window.onload = function() {
+        console.log("系統啟動中...");
+        const urlParams = new URLSearchParams(window.location.search);
+        const empId = urlParams.get('empId');
+        const name = urlParams.get('name');
+        const role = urlParams.get('role');
+
+        if (!empId || (role !== "主管" && role !== "Admin")) {
+            alert("權限不足，將返回主選單");
+            window.location.href = "index.html";
+            return;
+        }
+
+        currentUser = { empId, name, role };
+        const infoDiv = document.getElementById('adminInfo');
+        if (infoDiv) infoDiv.innerText = "管理者: " + name;
+
+        initSystem();
+    };
+</script>
+</body>
+</html>
