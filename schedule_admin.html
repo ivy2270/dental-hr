@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>牙醫診所週排班系統 - 專業管理版</title>
     <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <style>
     :root { 
         --primary: #007bff; --success: #28a745; --error: #dc3545; --border: #dee2e6; 
@@ -78,6 +79,69 @@
 
     #copyModal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10002; display: none; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
     .modal-body { background: white; padding: 25px; border-radius: 12px; width: 320px; max-height: 80vh; overflow-y: auto; }
+	
+	/* 隱藏的輸出容器，確保不影響使用者畫面 */
+#hiddenRenderArea {
+    position: absolute;
+    left: -9999px;
+    top: -9999px;
+}
+
+/* A4 畫布樣式 */
+.a4-print-canvas {
+    width: 1123px; /* A4 橫向像素 */
+    height: 794px;
+    background: white;
+    padding: 30px;
+    display: flex;
+    gap: 10px;
+}
+
+.print-col {
+    flex: 1;
+    border: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+}
+
+.print-day-header {
+    background: #f8f9fa;
+    padding: 10px;
+    text-align: center;
+    border-bottom: 2px solid #333;
+    font-weight: bold;
+}
+
+.print-shift-section {
+    flex: 1;
+    padding: 5px;
+    border-bottom: 1px solid #eee;
+}
+
+.print-shift-title {
+    font-size: 12px;
+    font-weight: bold;
+    color: #666;
+    margin-bottom: 5px;
+}
+
+.print-slot {
+    background: #f0f0f0;
+    margin-bottom: 4px;
+    padding: 4px 8px;
+    border-radius: 4px;
+    font-size: 13px;
+}
+
+.print-staff-tag {
+    display: inline-block;
+    background: var(--staff-bg);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    margin-left: 5px;
+}
 
     /* =========================================
        手機版 RWD 優化 (螢幕寬度 < 768px)
@@ -224,6 +288,7 @@
         <button onclick="openCopyModal()" class="btn-main" style="background:#6f42c1; margin-bottom:8px;">從歷史週複製</button>
         <button id="btnSave" onclick="saveSchedule()" class="btn-main" style="background:var(--success)">發佈班表</button>
         <button id="btnExitView" onclick="fetchData()" class="btn-main" style="background:var(--error); display:none;">結束預覽</button>
+		<button onclick="generateA4ScheduleImage()" class="btn-main" style="background: #fd7e14; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 5px;">產生 A4 班表圖卡</button>
 		<button onclick="window.location.href='index.html'" class="btn-main" style="background:#6c757d;">⬅ 返回系統選單</button>
     </div>
 </div>
@@ -236,6 +301,20 @@
     </div>
     <div class="weekly-container" id="weeklyGrid"></div>
 </div>
+
+<div id="imagePreviewModal" style="position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:99999; display:none; flex-direction:column; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:white; padding:20px; border-radius:12px; max-width:95%; max-height:80%; overflow:auto; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+        <h3 style="margin-top:0; text-align:center; color:#333;">週班表圖卡預覽 (A4橫向)</h3>
+        <div id="canvasContainer" style="border:1px solid #ccc; line-height:0;"></div>
+        <p style="color:#666; font-size:13px; text-align:center; margin-top:10px;">※ 若無法下載，請長按圖片選擇「儲存圖片」</p>
+    </div>
+    <div style="margin-top:20px; display:flex; gap:15px;">
+        <button id="downloadBtn" class="btn-main" style="background:#28a745; width:150px; cursor:pointer;">💾 下載圖片</button>
+        <button onclick="document.getElementById('imagePreviewModal').style.display='none'" class="btn-main" style="background:#6c757d; width:150px; cursor:pointer;">❌ 關閉預覽</button>
+    </div>
+</div>
+
+<div id="renderTempArea" style="position:absolute; left:-9999px; top:-9999px;"></div>
 
 <script>
     // JS 邏輯完全保留，修復顏色顯示 Bug 與醫師深灰色標籤
@@ -693,6 +772,122 @@ function getStaffColor(empId) {
                    return `<div class="leave-item"><b>${l[1]}</b> (${l[3]}:${l[4]})</div>`;
                }).join('') : '<div class="leave-item" style="color:#ccc;">無</div>');
     }
+	
+	async function generateA4ScheduleImage() {
+    showLoading(true, "正在繪製 A4 比例圖卡...");
+
+    // 1. 建立一個臨時容器
+    const renderArea = document.createElement('div');
+    renderArea.id = "hiddenRenderArea";
+    document.body.appendChild(renderArea);
+
+// 2. 構建 A4 HTML 結構 (更新版)
+    let html = `<div class="a4-print-canvas" id="captureTarget">`;
+    
+    const days = document.querySelectorAll('.day-column');
+    days.forEach(day => {
+        const dayName = day.querySelector('.day-header').innerText.replace('▼','').replace('▲','').trim();
+        html += `<div class="print-col">
+            <div class="print-day-header">${dayName}</div>`;
+
+        // --- A. 優先檢查是否為「整日休診」 ---
+        // 根據您提供的 HTML 結構特徵來偵測
+        const dayContent = day.innerHTML;
+        if (dayContent.includes("本日休診")) {
+            html += `<div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #f8f9fa; padding: 20px;">
+                <div style="border: 2px dashed #adb5bd; color: #adb5bd; padding: 20px; border-radius: 10px; text-align: center; width: 80%;">
+                    <div style="font-size: 30px; margin-bottom: 10px;">🏨</div>
+                    <div style="font-size: 18px; font-weight: bold; letter-spacing: 2px;">本日休診</div>
+                </div>
+            </div>`;
+        } else {
+            // --- B. 非整日休診，則遍歷早午晚診次 ---
+            const shifts = day.querySelectorAll('.shift-section');
+            shifts.forEach(shift => {
+                const shiftTitle = shift.querySelector('.shift-title').innerText.replace('+ 加診','').trim();
+                
+                // 單診休診偵測 (例如：只有早診休診)
+                const isShiftClosed = shift.innerText.includes("休診");
+
+                html += `<div class="print-shift-section">
+                    <div class="print-shift-title">${shiftTitle}</div>`;
+                
+                if (isShiftClosed) {
+                    html += `<div style="background: #f1f3f5; color: #adb5bd; text-align: center; padding: 10px; border-radius: 4px; font-size: 13px;">🏠 休診</div>`;
+                } else {
+                    const slots = shift.querySelectorAll('.slot-box');
+                    slots.forEach(slot => {
+                        const drSpan = slot.querySelector('.dr-name-label span');
+                        const drName = drSpan ? drSpan.innerText : "未定";
+                        
+                        // 醫師請假備註
+                        const drLeaveNote = slot.querySelector('.dr-leave-note');
+                        let leaveHtml = "";
+                        if (drLeaveNote) {
+                            leaveHtml = `<div style="color: #d63031; font-size: 10px; font-weight: bold; margin-bottom: 2px;">⚠️ 醫師請假: ${drLeaveNote.innerText.trim()}</div>`;
+                        }
+
+                        // 助理標籤與顏色
+                        const staffListHtml = Array.from(slot.querySelectorAll('.staff-tag'))
+                            .map(s => {
+                                const name = s.childNodes[0].textContent.trim(); 
+                                const bgColor = window.getComputedStyle(s).backgroundColor;
+                                return name ? `<span style="background-color: ${bgColor} !important; color: white; padding: 2px 6px; border-radius: 3px; margin-left: 5px; font-size: 11px; display: inline-block;">${name}</span>` : '';
+                            }).join('');
+
+                        html += `<div class="print-slot" style="margin-bottom: 5px; padding: 4px; background: #f9f9f9; border-radius: 4px; border: 1px solid #eee;">
+                            ${leaveHtml}
+                            <b style="color:#333; font-size: 13px;">${drName}</b> ${staffListHtml}
+                        </div>`;
+                    });
+                }
+                html += `</div>`;
+            });
+        }
+        
+        // 底部助理休假資訊保持不變
+        const leaves = day.querySelector('.day-leave-area').innerHTML;
+        html += `<div style="padding:10px; font-size:11px; background:#fff9db; border-top: 1px solid #ffe066;">${leaves}</div>`;
+        html += `</div>`;
+    });
+    html += `</div>`;
+
+    renderArea.innerHTML = html;
+
+    // 3. 使用 html2canvas 截取這個「看不見」的容器
+    try {
+        const target = document.getElementById('captureTarget');
+        const canvas = await html2canvas(target, {
+            scale: 2,
+            useCORS: true,
+            width: 1123,
+            height: 794
+        });
+
+        // 顯示預覽 (與之前邏輯相同)
+        const container = document.getElementById('canvasContainer');
+        container.innerHTML = '';
+        const img = new Image();
+        img.src = canvas.toDataURL("image/png");
+        img.style.width = "100%";
+        container.appendChild(img);
+        document.getElementById('imagePreviewModal').style.display = 'flex';
+        
+        // 設定下載
+        document.getElementById('downloadBtn').onclick = () => {
+            const link = document.createElement('a');
+            link.download = `診所班表_${document.getElementById('mondayPicker').value}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+        };
+    } catch (e) {
+        console.error(e);
+        alert("產圖失敗");
+    } finally {
+        document.body.removeChild(renderArea); // 用完即丟，不佔空間
+        showLoading(false);
+    }
+}
 
     // --- 初始化 ---
 
