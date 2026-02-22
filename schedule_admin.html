@@ -288,7 +288,9 @@
         <button onclick="openCopyModal()" class="btn-main" style="background:#6f42c1; margin-bottom:8px;">從歷史週複製</button>
         <button id="btnSave" onclick="saveSchedule()" class="btn-main" style="background:var(--success)">發佈班表</button>
         <button id="btnExitView" onclick="fetchData()" class="btn-main" style="background:var(--error); display:none;">結束預覽</button>
-		<button onclick="generateA4ScheduleImage()" class="btn-main" style="background: #fd7e14; margin-bottom: 8px; display: flex; align-items: center; justify-content: center; gap: 5px;">產生 A4 班表圖卡</button>
+		<button onclick="showImageOptions()" class="btn-main" style="background: #fd7e14; margin-bottom: 8px;">
+    產生班表圖卡
+</button>
 		<button onclick="window.location.href='index.html'" class="btn-main" style="background:#6c757d;">⬅ 返回系統選單</button>
     </div>
 </div>
@@ -300,6 +302,18 @@
         <div id="verButtons" style="display:flex; gap:8px;"></div>
     </div>
     <div class="weekly-container" id="weeklyGrid"></div>
+</div>
+
+<div id="printOptionModal" style="position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:100000; display:none; align-items:center; justify-content:center;">
+    <div style="background:white; padding:25px; border-radius:15px; width:300px; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.3);">
+        <h3 style="margin-top:0;">選擇輸出模式</h3>
+        <p style="color:#666; font-size:14px; margin-bottom:20px;">請選擇適合的圖片樣式</p>
+        
+        <button onclick="execPrint('color')" class="btn-main" style="background:#fd7e14; margin-bottom:12px; width:100%;">🌈 彩色 (適合 LINE/螢幕查看)</button>
+        <button onclick="execPrint('bw')" class="btn-main" style="background:#495057; margin-bottom:12px; width:100%;">🖨️ 黑白 (適合紙本列印)</button>
+        
+        <button onclick="document.getElementById('printOptionModal').style.display='none'" style="background:none; border:none; color:#999; cursor:pointer; font-size:14px; text-decoration:underline;">取消</button>
+    </div>
 </div>
 
 <div id="imagePreviewModal" style="position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:99999; display:none; flex-direction:column; align-items:center; justify-content:center; padding:20px;">
@@ -773,15 +787,26 @@ function getStaffColor(empId) {
                }).join('') : '<div class="leave-item" style="color:#ccc;">無</div>');
     }
 	
-	async function generateA4ScheduleImage() {
-    showLoading(true, "正在繪製 A4 比例圖卡...");
+	
+	// 顯示選擇視窗
+function showImageOptions() {
+    document.getElementById('printOptionModal').style.display = 'flex';
+}
 
-    // 1. 建立一個臨時容器
+// 執行產圖並關閉視窗
+function execPrint(mode) {
+    document.getElementById('printOptionModal').style.display = 'none';
+    generateA4ScheduleImage(mode); // 呼叫原本寫好的函式
+}
+
+
+async function generateA4ScheduleImage(mode = 'color') {
+    showLoading(true, `正在繪製 ${mode === 'color' ? '彩色' : '黑白'} 圖卡...`);
+
     const renderArea = document.createElement('div');
     renderArea.id = "hiddenRenderArea";
     document.body.appendChild(renderArea);
 
-// 2. 構建 A4 HTML 結構 (更新版)
     let html = `<div class="a4-print-canvas" id="captureTarget">`;
     
     const days = document.querySelectorAll('.day-column');
@@ -790,52 +815,50 @@ function getStaffColor(empId) {
         html += `<div class="print-col">
             <div class="print-day-header">${dayName}</div>`;
 
-        // --- A. 優先檢查是否為「整日休診」 ---
-        // 根據您提供的 HTML 結構特徵來偵測
         const dayContent = day.innerHTML;
         if (dayContent.includes("本日休診")) {
-            html += `<div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #f8f9fa; padding: 20px;">
-                <div style="border: 2px dashed #adb5bd; color: #adb5bd; padding: 20px; border-radius: 10px; text-align: center; width: 80%;">
-                    <div style="font-size: 30px; margin-bottom: 10px;">🏨</div>
-                    <div style="font-size: 18px; font-weight: bold; letter-spacing: 2px;">本日休診</div>
+            html += `<div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
+                <div style="border: 2px dashed #adb5bd; color: #adb5bd; padding: 15px; border-radius: 10px; text-align: center; width: 80%;">
+                    <div style="font-size: 24px;">🏨 本日休診</div>
                 </div>
             </div>`;
         } else {
-            // --- B. 非整日休診，則遍歷早午晚診次 ---
             const shifts = day.querySelectorAll('.shift-section');
             shifts.forEach(shift => {
                 const shiftTitle = shift.querySelector('.shift-title').innerText.replace('+ 加診','').trim();
-                
-                // 單診休診偵測 (例如：只有早診休診)
                 const isShiftClosed = shift.innerText.includes("休診");
 
                 html += `<div class="print-shift-section">
                     <div class="print-shift-title">${shiftTitle}</div>`;
                 
                 if (isShiftClosed) {
-                    html += `<div style="background: #f1f3f5; color: #adb5bd; text-align: center; padding: 10px; border-radius: 4px; font-size: 13px;">🏠 休診</div>`;
+                    html += `<div style="color: #adb5bd; text-align: center; font-size: 12px;">🏠 休診</div>`;
                 } else {
                     const slots = shift.querySelectorAll('.slot-box');
                     slots.forEach(slot => {
                         const drSpan = slot.querySelector('.dr-name-label span');
                         const drName = drSpan ? drSpan.innerText : "未定";
                         
-                        // 醫師請假備註
                         const drLeaveNote = slot.querySelector('.dr-leave-note');
-                        let leaveHtml = "";
-                        if (drLeaveNote) {
-                            leaveHtml = `<div style="color: #d63031; font-size: 10px; font-weight: bold; margin-bottom: 2px;">⚠️ 醫師請假: ${drLeaveNote.innerText.trim()}</div>`;
-                        }
+                        let leaveHtml = drLeaveNote ? `<div style="color: #d63031; font-size: 10px; font-weight: bold;">⚠️ ${drLeaveNote.innerText.trim()}</div>` : "";
 
-                        // 助理標籤與顏色
+                        // --- 核心改動：根據模式決定助理標籤樣式 ---
                         const staffListHtml = Array.from(slot.querySelectorAll('.staff-tag'))
                             .map(s => {
-                                const name = s.childNodes[0].textContent.trim(); 
-                                const bgColor = window.getComputedStyle(s).backgroundColor;
-                                return name ? `<span style="background-color: ${bgColor} !important; color: white; padding: 2px 6px; border-radius: 3px; margin-left: 5px; font-size: 11px; display: inline-block;">${name}</span>` : '';
+                                const name = s.childNodes[0].textContent.trim();
+                                if (!name) return '';
+                                
+                                if (mode === 'color') {
+                                    // 彩色模式：抓取原始背景色
+                                    const bgColor = window.getComputedStyle(s).backgroundColor;
+                                    return `<span style="background-color: ${bgColor} !important; color: white; padding: 2px 5px; border-radius: 3px; margin-left: 3px; font-size: 11px; display: inline-block;">${name}</span>`;
+                                } else {
+                                    // 黑白模式：去背景，改用邊框或括號
+                                    return `<span style="background: none !important; color: #333; border: 1px solid #ccc; padding: 1px 4px; border-radius: 3px; margin-left: 3px; font-size: 11px; display: inline-block;">${name}</span>`;
+                                }
                             }).join('');
 
-                        html += `<div class="print-slot" style="margin-bottom: 5px; padding: 4px; background: #f9f9f9; border-radius: 4px; border: 1px solid #eee;">
+                        html += `<div class="print-slot" style="margin-bottom: 4px; padding: 3px; background: #f9f9f9; border-radius: 4px; border: 1px solid #eee;">
                             ${leaveHtml}
                             <b style="color:#333; font-size: 13px;">${drName}</b> ${staffListHtml}
                         </div>`;
@@ -845,26 +868,20 @@ function getStaffColor(empId) {
             });
         }
         
-        // 底部助理休假資訊保持不變
-        const leaves = day.querySelector('.day-leave-area').innerHTML;
-        html += `<div style="padding:10px; font-size:11px; background:#fff9db; border-top: 1px solid #ffe066;">${leaves}</div>`;
+        // 底部助理休假 (黑白模式下也微調樣式)
+        const leavesHtml = day.querySelector('.day-leave-area').innerHTML;
+        const leaveBg = mode === 'color' ? '#fff9db' : '#ffffff';
+        html += `<div style="padding:8px; font-size:11px; background:${leaveBg}; border-top: 1px solid #ddd;">${leavesHtml}</div>`;
         html += `</div>`;
     });
     html += `</div>`;
 
     renderArea.innerHTML = html;
 
-    // 3. 使用 html2canvas 截取這個「看不見」的容器
     try {
         const target = document.getElementById('captureTarget');
-        const canvas = await html2canvas(target, {
-            scale: 2,
-            useCORS: true,
-            width: 1123,
-            height: 794
-        });
+        const canvas = await html2canvas(target, { scale: 2, useCORS: true, width: 1123, height: 794 });
 
-        // 顯示預覽 (與之前邏輯相同)
         const container = document.getElementById('canvasContainer');
         container.innerHTML = '';
         const img = new Image();
@@ -873,10 +890,9 @@ function getStaffColor(empId) {
         container.appendChild(img);
         document.getElementById('imagePreviewModal').style.display = 'flex';
         
-        // 設定下載
         document.getElementById('downloadBtn').onclick = () => {
             const link = document.createElement('a');
-            link.download = `診所班表_${document.getElementById('mondayPicker').value}.png`;
+            link.download = `診所班表_${mode}_${document.getElementById('mondayPicker').value}.png`;
             link.href = canvas.toDataURL("image/png");
             link.click();
         };
@@ -884,7 +900,7 @@ function getStaffColor(empId) {
         console.error(e);
         alert("產圖失敗");
     } finally {
-        document.body.removeChild(renderArea); // 用完即丟，不佔空間
+        document.body.removeChild(renderArea);
         showLoading(false);
     }
 }
