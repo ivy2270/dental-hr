@@ -420,7 +420,7 @@ function getStaffColor(empId) {
             const isClinicClosed = holiday && holiday[2] === 'No';
 
             return `
-                <div class="day-column" onclick="handleDayClick(this)">
+                <div class="day-column" onclick="handleDayClick(this, event)">
                     <div class="day-header">${dayNames[i]}<small>${currentFormattedDate}</small></div>
                     <div class="day-content">
                         <div style="flex-grow:1; overflow-y:auto; padding:4px;">
@@ -765,6 +765,12 @@ delay: 200,      // 按住 200 毫秒後才觸發拖曳，讓手指快速滑過�
 
     function handleDayClick(el) {
         if(window.innerWidth > 768) return;
+		// 2. 核心修正：判斷點擊的來源
+    // 如果點擊的是 X (remove) 或者 標籤本身 (staff-tag)，就跳過收合動作
+    if (event.target.classList.contains('remove') || 
+        event.target.classList.contains('staff-tag')) {
+        return; 
+    }		
         document.querySelectorAll('.day-column').forEach(c => { if(c !== el) c.classList.remove('active'); });
         el.classList.toggle('active');
     }
