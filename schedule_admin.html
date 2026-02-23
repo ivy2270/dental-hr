@@ -164,46 +164,31 @@
             width: 100%; height: auto; position: fixed; bottom: 0; left: 0; 
             background: #fff; padding: 10px; z-index: 1001; 
             box-shadow: 0 -3px 10px rgba(0,0,0,0.1); 
-            display: flex; flex-direction: column; 
+            display: flex; flex-direction: column;
+			overflow: visible !important;			
         }
 
         /* 隱藏手機版標題 */
         #adminInfo, .sidebar > div:first-child { display: none ; }
 
-/* 助理池 (最上層) 修正 */
-        #staffPool { 
-            display: flex; 
-            flex-direction: row; 
-            gap: 8px; 
-            overflow-x: auto; 
-            height: 60px; /* 稍微增加高度避免捲軸遮擋 */
-            flex-shrink: 0; 
-            margin-bottom: 5px;
-            padding-bottom: 4px; /* 留出空間給捲軸 */
-			overflow-x: auto; 
-            overflow-y: hidden; 
-            /* 3. 隱藏不同瀏覽器的滾動條（選配，讓介面更乾淨） */
-            scrollbar-width: none; /* Firefox */
-            -ms-overflow-style: none; /* IE/Edge */
-            -webkit-overflow-scrolling: touch; /* 讓手機滑動更順暢 */
-        }
-		/* 隱藏 Chrome/Safari 的滾動條 */
-        #staffPool::-webkit-scrollbar {
-            display: none;
-        }
-        
-        .staff-item { 
-            min-width: 110px; /* 從 90px 增加到 110px，確保兩字名字與標籤並列 */
-            flex-shrink: 0;
-            height: 40px; 
-            margin-bottom: 0; 
-            display: flex; 
-            align-items: center; 
-            font-size: 13px; 
-            white-space: nowrap; /* 強制不換行 */
-            padding: 0 8px;
-			box-sizing: border-box;
-        }
+#staffPool {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important; /* 強制不換行 */
+        overflow-x: auto !important;  /* 明確開啟橫向捲軸 */
+        overflow-y: hidden;           /* 關閉垂直捲軸 */
+        -webkit-overflow-scrolling: touch;
+        min-height: 50px;             /* 給捲軸留出空間 */
+		gap: 10px !important;         
+        padding: 10px 5px !important;
+    }
+    .staff-item {
+        flex-shrink: 0 !important;    /* 關鍵：防止寬度被壓縮 */
+        min-width: 110px;
+		margin: 0 !important;
+		
+    }
+}
 		.count-badge {
             font-size: 9px;
             padding: 1px 3px;
@@ -277,7 +262,7 @@
 <div class="sidebar">
     <div id="adminInfo" style="font-size:14px; margin-bottom:10px; color:var(--primary); font-weight:bold; text-align:center;"></div>
     
-    <div id="staffPool" style="flex-grow: 1; overflow-y: auto;"></div>
+    <div id="staffPool"></div>
 
     <div id="datePickerContainer" style="background:#f8f9fa; padding:10px; border-radius:8px; margin-top:10px; border:1px solid #eee;">
         <label style="font-size:10px; color:#999; display:block; margin-bottom:4px;">選擇週一日期</label>
@@ -485,29 +470,28 @@ function getStaffColor(empId) {
         }).join('');
     }
 
-    function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift, isExtra, defaultTag = "") {
-        const isDisabled = !isPublic && leaveReason !== null;
-        // 修正：isPublic 為 false 時為醫師診位，套用深灰色 --dr-bg
-        const labelStyle = isPublic 
-            ? 'background:#e9ecef; color:#666;' 
-            : 'background:var(--dr-bg); color:white;';
+function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift, isExtra, defaultTag = "") {
+    const isDisabled = !isPublic && leaveReason !== null;
+    const labelStyle = isPublic 
+        ? 'background:#e9ecef; color:#666;' 
+        : 'background:var(--dr-bg); color:white;';
 
-        return `
-            <div class="slot-box ${isDisabled ? 'slot-disabled' : ''}">
-                <div class="dr-name-label" style="${labelStyle} position:relative;">
-                    <span>${isPublic ? pos : drName}</span>
-                    ${isDisabled ? `<span class="dr-leave-note" style="font-size:9px; color:var(--error); margin-top:2px; font-weight:normal;">${leaveReason}</span>` : ''}
-                    ${isExtra ? `<span class="remove" onclick="this.closest('.slot-box').remove(); updateCounts();" style="position:absolute; top:0; right:2px; color:red; cursor:pointer;">×</span>` : ''}
-                </div>
-                <div class="drop-zone" 
-                     data-active="${!isDisabled}" 
-                     data-date="${dateStr}" 
-                     data-shift="${shift}" 
-                     data-pos="${pos}" 
-                     data-dr="${drName}">${defaultTag}</div>
+    return `
+        <div class="slot-box ${isDisabled ? 'slot-disabled' : ''}">
+            <div class="dr-name-label" style="${labelStyle} position:relative;">
+                <span>${isPublic ? pos : drName}</span>
+                ${isDisabled ? `<span class="dr-leave-note" style="font-size:9px; color:var(--error); margin-top:2px; font-weight:normal;">${leaveReason}</span>` : ''}
+                ${isExtra ? `<span class="remove" onclick="event.stopPropagation(); this.closest('.slot-box').remove(); updateCounts();" style="position:absolute; top:0; right:2px; color:red; cursor:pointer;">×</span>` : ''}
             </div>
-        `;
-    }
+            <div class="drop-zone" 
+                 data-active="${!isDisabled}" 
+                 data-date="${dateStr}" 
+                 data-shift="${shift}" 
+                 data-pos="${pos}" 
+                 data-dr="${drName}">${defaultTag}</div>
+        </div>
+    `;
+}
 
     function renderStaffPool() {
         const pool = document.getElementById('staffPool');
@@ -580,7 +564,7 @@ function getStaffColor(empId) {
                     const staffColor = getStaffColor(id);
                     evt.item.className = 'staff-tag';
                     evt.item.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
-                    evt.item.innerHTML = `${name} <span class="remove" onclick="this.parentElement.remove(); updateCounts();">×</span>`;
+                    evt.item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
                 }
                 updateCounts();
             },
@@ -607,7 +591,7 @@ function getStaffColor(empId) {
                 tag.className='staff-tag'; 
                 tag.dataset.id=id; 
                 tag.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
-                tag.innerHTML = `${empMap[id] || id} ${!isReadOnly ? '<span class="remove" onclick="this.parentElement.remove(); updateCounts();">×</span>' : ''}`;
+                tag.innerHTML = `${empMap[id] || id} ${!isReadOnly ? '<span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>' : ''}`;
                 zone.appendChild(tag);
             }
         });
