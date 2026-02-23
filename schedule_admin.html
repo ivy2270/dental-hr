@@ -55,7 +55,7 @@
 
     .drop-zone { flex-grow: 1; min-height: 38px; padding: 4px; display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; }
     .staff-tag { background:var(--staff-bg); color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; display: flex; align-items: center; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
-    .remove { cursor: pointer; margin-left: 5px; font-weight: bold; font-size: 14px; }
+    .remove { cursor: pointer; margin-left: 5px; font-weight: bold; font-size: 14px; padding: 2px 10px !important; display: inline-block;}
 
     .day-leave-area { background: #f8f9fa; padding: 8px; font-size: 11px; border-top: 1px solid var(--border); height: 90px; overflow-y: auto; }
     .leave-title { font-size: 10px; color: #adb5bd; font-weight: bold; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -177,6 +177,7 @@
         flex-wrap: nowrap !important; /* 強制不換行 */
         overflow-x: auto !important;  /* 明確開啟橫向捲軸 */
         overflow-y: hidden;           /* 關閉垂直捲軸 */
+		touch-action: pan-x !important;
         -webkit-overflow-scrolling: touch;
         min-height: 50px;             /* 給捲軸留出空間 */
 		gap: 10px !important;         
@@ -461,10 +462,12 @@ function getStaffColor(empId) {
             if (defaultId && !leaveReason && !hasSavedData) {
                 const staffColor = getStaffColor(defaultId);
                 defaultStaffTag = `
-                    <div class="staff-tag" data-id="${defaultId}" style="background-color: ${staffColor}; color: white ; border: none ;">
-                        ${empMap[defaultId] || defaultId} 
-                        <span class="remove" onclick="this.parentElement.remove(); updateCounts();">×</span>
-                    </div>`;
+    <div class="staff-tag" data-id="${defaultId}" style="background-color: ${staffColor}; color: white; border: none;">
+        ${empMap[defaultId] || defaultId} 
+        <span class="remove" 
+              onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();"
+              ontouchend="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>
+    </div>`;
             }
             return createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift, false, defaultStaffTag);
         }).join('');
@@ -480,15 +483,19 @@ function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift,
         <div class="slot-box ${isDisabled ? 'slot-disabled' : ''}">
             <div class="dr-name-label" style="${labelStyle} position:relative;">
                 <span>${isPublic ? pos : drName}</span>
-                ${isDisabled ? `<span class="dr-leave-note" style="font-size:9px; color:var(--error); margin-top:2px; font-weight:normal;">${leaveReason}</span>` : ''}
-                ${isExtra ? `<span class="remove" onclick="event.stopPropagation(); this.closest('.slot-box').remove(); updateCounts();" style="position:absolute; top:0; right:2px; color:red; cursor:pointer;">×</span>` : ''}
+                ${isDisabled ? `<span class="dr-leave-note" ...>${leaveReason}</span>` : ''}
+                ${isExtra ? `
+                    <span class="remove" 
+                          onclick="event.stopPropagation(); this.closest('.slot-box').remove(); updateCounts();" 
+                          ontouchend="event.stopPropagation(); this.closest('.slot-box').remove(); updateCounts();"
+                          style="position:absolute; top:0; right:2px; color:red; cursor:pointer; padding:5px;">×</span>` : ''}
             </div>
             <div class="drop-zone" 
-                 data-active="${!isDisabled}" 
+                 data-active="true" 
                  data-date="${dateStr}" 
                  data-shift="${shift}" 
-                 data-pos="${pos}" 
-                 data-dr="${drName}">${defaultTag}</div>
+                 data-dr="${drName}" 
+                 data-pos="${pos}">${defaultTag}</div>
         </div>
     `;
 }
@@ -516,7 +523,10 @@ function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift,
                 </div>
             `;
         }).join('');
-        new Sortable(pool, { group: { name: 'shared', pull: 'clone', put: false }, animation: 150, sort: false });
+        new Sortable(pool, { group: { name: 'shared', pull: 'clone', put: false }, animation: 150,
+delay: 200,      // 按住 200 毫秒後才觸發拖曳，讓手指快速滑過時能順利滾動捲軸
+    delayOnTouchOnly: true, // 只在手機端套用延遲
+		sort: false });
     }
 
     // --- 拖放邏輯 ---
@@ -527,8 +537,10 @@ function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift,
         if (!el || el.dataset.active !== "true") return;
         const s = new Sortable(el, {
             group: 'shared', 
-            animation: 150, 
+            animation: 150, 	
             disabled: isReadOnly,
+			delay: 200,
+        delayOnTouchOnly: true,
             onAdd: (evt) => {
                 const id = evt.item.dataset.id;
                 const date = el.dataset.date;
@@ -564,7 +576,10 @@ function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift,
                     const staffColor = getStaffColor(id);
                     evt.item.className = 'staff-tag';
                     evt.item.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
-                    evt.item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
+                    evt.item.innerHTML = `${name} <span class="remove" 
+    onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();" 
+    ontouchend="event.stopPropagation(); this.parentElement.remove(); updateCounts();"
+    style="padding: 2px 8px;">×</span>`;
                 }
                 updateCounts();
             },
@@ -591,7 +606,11 @@ function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift,
                 tag.className='staff-tag'; 
                 tag.dataset.id=id; 
                 tag.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
-                tag.innerHTML = `${empMap[id] || id} ${!isReadOnly ? '<span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>' : ''}`;
+                tag.innerHTML = `${empMap[id] || id} ${!isReadOnly ? `
+    <span class="remove" 
+          onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();" 
+          ontouchend="event.stopPropagation(); this.parentElement.remove(); updateCounts();"
+          style="padding: 2px 8px;">×</span>` : ''}`;
                 zone.appendChild(tag);
             }
         });
@@ -650,7 +669,10 @@ function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift,
                 tag.className='staff-tag'; 
                 tag.dataset.id = item.empId;
                 tag.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
-                tag.innerHTML = `${empMap[item.empId] || item.empId} ${!isReadOnly ? '<span class="remove" onclick="this.parentElement.remove(); updateCounts();">×</span>' : ''}`;
+                tag.innerHTML = `${empMap[item.empId] || item.empId} ${!isReadOnly ? `
+    <span class="remove" 
+          onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();"
+          ontouchend="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>` : ''}`;
                 target.appendChild(tag);
             }
         });
