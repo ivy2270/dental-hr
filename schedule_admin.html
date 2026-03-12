@@ -52,6 +52,7 @@
     .slot-box { margin-bottom: 4px; border: 1px solid #e9ecef; border-radius: 4px; background: #fff; display: flex; align-items: stretch; overflow: hidden; min-height: 40px; }
     .dr-name-label { width: 45px; background: #f8f9fa; color: #333; padding: 4px; font-weight: bold; font-size: 11px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; line-height: 1.2; border-right: 1px solid #e9ecef; flex-shrink: 0; position: relative; }
     .slot-disabled { opacity: 0.6; background: #f1f3f5 ; }
+    .drop-zone[data-active="false"] { pointer-events: none; background: repeating-linear-gradient(45deg, #f5f5f5, #f5f5f5 5px, #ececec 5px, #ececec 10px); }
 
     .drop-zone { flex-grow: 1; min-height: 38px; padding: 4px; display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; }
     .staff-tag { background:var(--staff-bg); color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; display: flex; align-items: center; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
@@ -245,37 +246,7 @@
         .day-column.active .day-header::after { content: '▲'; }
         
         .dr-name-label { width: 55px; font-size: 12px; }
-		
-		/* 正在被拖曳的分身樣式 */
-.sortable-drag {
-    opacity: 0.9 !important;
-    transform: scale(1.1) !important; /* 稍微放大，確認選中 */
-    box-shadow: 0 10px 20px rgba(0,0,0,0.2) !important;
-    z-index: 10002 !important;
-    background-color: var(--staff-bg) !important;
-}
-
-/* 預計落下的影子（目標位置） */
-.sortable-ghost {
-    background-color: rgba(0, 123, 255, 0.2) !important;
-    border: 2px dashed var(--primary) !important;
-    visibility: visible !important;
-    min-width: 40px;
-    height: 30px;
-}
-
-/* 避免手機長按標籤時跳出選單 */
-.staff-tag, .staff-item {
-        /* 禁止手機長按彈出選單，避免干擾拖放 */
-        -webkit-touch-callout: none !important;
-        -webkit-user-select: none !important;
-        user-select: none !important;
-        /* 禁止原生觸控行為，解決點擊消失的問題 */
-        touch-action: none !important; 
-        cursor: grab;
     }
-    }
-	
 </style>
 </head>
 <body id="appBody">
@@ -497,8 +468,7 @@ function getStaffColor(empId) {
     <div class="staff-tag" data-id="${defaultId}" style="background-color: ${staffColor}; color: white; border: none;">
         ${empMap[defaultId] || defaultId} 
         <span class="remove" 
-              onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();"
-              ontouchend="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>
+              onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>
     </div>`;
             }
             return createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift, false, defaultStaffTag);
@@ -523,7 +493,7 @@ function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift,
                           style="position:absolute; top:0; right:2px; color:red; cursor:pointer; padding:5px;">×</span>` : ''}
             </div>
             <div class="drop-zone" 
-                 data-active="true" 
+                 data-active="${isDisabled ? 'false' : 'true'}" 
                  data-date="${dateStr}" 
                  data-shift="${shift}" 
                  data-dr="${drName}" 
@@ -565,79 +535,59 @@ delay: 200,      // 按住 200 毫秒後才觸發拖曳，讓手指快速滑過�
 
     function initSortable() { document.querySelectorAll('.drop-zone').forEach(el => initSortableOnElement(el)); }
     
-function initSortableOnElement(el) {
-    if (!el || el.dataset.active !== "true") return;
-    
-    // 確保每個格子只有一個控制器
-    if (el.sortableInstance) {
-        el.sortableInstance.destroy();
+    function initSortableOnElement(el) {
+        if (!el || el.dataset.active !== "true") return;
+        const s = new Sortable(el, {
+            group: 'shared', 
+            animation: 150, 	
+            disabled: isReadOnly,
+			delay: 200,
+        delayOnTouchOnly: true,
+            onAdd: (evt) => {
+                const id = evt.item.dataset.id;
+                const date = el.dataset.date;
+                const shift = el.dataset.shift;
+                const name = evt.item.querySelector('strong')?.innerText || evt.item.innerText.replace('×', '').trim();
+
+                // 1. 重複排班偵測
+                const allZonesInShift = document.querySelectorAll(`.drop-zone[data-date="${date}"][data-shift="${shift}"]`);
+                let existsElsewhere = false;
+                allZonesInShift.forEach(zone => {
+                    if (zone !== el && zone.querySelector(`[data-id="${id}"]`)) existsElsewhere = true;
+                    if (zone === el && zone.querySelectorAll(`[data-id="${id}"]`).length > 1) existsElsewhere = true;
+                });
+
+                if (existsElsewhere) {
+                    alert(`警告：${name} 在 ${date} ${shift}診 已經排過班了！`);
+                    evt.item.remove();
+                    updateCounts();
+                    return;
+                }
+
+                // 2. 請假偵測
+                const leaveInfo = checkStaffLeave(id, date, shift); 
+                if (leaveInfo) {
+                    alert(`防呆：${name} 在 ${date} 有請假設定 (${leaveInfo})！`);
+                    evt.item.remove();
+                    updateCounts();
+                    return;
+                }
+
+                // 3. 樣式轉換：拖入時設定背景顏色
+                if (evt.item.classList.contains('staff-item')) {
+                    const staffColor = getStaffColor(id);
+                    evt.item.className = 'staff-tag';
+                    evt.item.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
+                    evt.item.innerHTML = `${name} <span class="remove" 
+    onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();" 
+    style="padding: 2px 8px;">×</span>`;
+                }
+                updateCounts();
+            },
+            onEnd: updateCounts
+        });
+        sortables.push(s);
     }
-
-    el.sortableInstance = new Sortable(el, {
-        group: 'shared', 
-        animation: 150, 	
-        disabled: isReadOnly,
-        
-        // --- 手機版相容性關鍵設定 ---
-        forceFallback: true,      // 強迫所有標籤（含舊有的）使用模擬拖曳
-        fallbackOnBody: true,     // 標籤拖動時浮在最上層，不被格子遮住
-        delay: 150,               // 增加微小延遲（0.15秒），區分「捲動網頁」與「拖動標籤」
-        delayOnTouchOnly: true,   
-        touchAction: 'none',
-
-        onAdd: handleOnAdd,       // 統一處理新增邏輯
-        onEnd: function() {
-            document.body.classList.remove('sortable-grabbing');
-            updateCounts();
-        },
-        onStart: function() {
-            document.body.classList.add('sortable-grabbing');
-        }
-    });
-}
-
-function handleOnAdd(evt) {
-    const item = evt.item;
-    const fromZone = evt.from;
-    const targetZone = evt.to;
-    const id = item.dataset.id;
-    const isFromPool = item.classList.contains('staff-item');
-    
-    // 取得姓名
-    const name = isFromPool ? 
-        item.querySelector('strong')?.innerText : 
-        item.innerText.replace('×', '').trim();
-
-    // 檢查是否重複或請假 (沿用您原本的判斷邏輯)
-    const allZonesInShift = document.querySelectorAll(`.drop-zone[data-date="${targetZone.dataset.date}"][data-shift="${targetZone.dataset.shift}"]`);
-    let isDuplicate = false;
-    allZonesInShift.forEach(zone => {
-        if (zone !== targetZone && zone.querySelector(`[data-id="${id}"]`)) isDuplicate = true;
-        if (zone === targetZone && zone.querySelectorAll(`[data-id="${id}"]`).length > 1) isDuplicate = true;
-    });
-
-    if (isDuplicate || checkStaffLeave(id, targetZone.dataset.date, targetZone.dataset.shift)) {
-        if (isDuplicate) alert(`警告：${name} 已在該診次中`);
-        
-        // 關鍵：驗證失敗時，精準退回原位
-        if (isFromPool) {
-            item.remove();
-        } else {
-            fromZone.insertBefore(item, fromZone.children[evt.oldIndex]);
-        }
-        updateCounts();
-        return;
-    }
-
-    // 若成功且是新拉上來的，才轉換樣式
-    if (isFromPool) {
-        const staffColor = getStaffColor(id);
-        item.className = 'staff-tag';
-        item.style.cssText = `background-color: ${staffColor}; color: white; border: none;`;
-        item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
-    }
-    updateCounts();
-}
 
     // --- 資料填充與存檔 ---
 
@@ -659,8 +609,7 @@ function handleOnAdd(evt) {
                 tag.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
                 tag.innerHTML = `${empMap[id] || id} ${!isReadOnly ? `
     <span class="remove" 
-          onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();" 
-          ontouchend="event.stopPropagation(); this.parentElement.remove(); updateCounts();"
+          onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();"
           style="padding: 2px 8px;">×</span>` : ''}`;
                 zone.appendChild(tag);
             }
@@ -723,7 +672,7 @@ function handleOnAdd(evt) {
                 tag.innerHTML = `${empMap[item.empId] || item.empId} ${!isReadOnly ? `
     <span class="remove" 
           onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();"
-          ontouchend="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>` : ''}`;
+          style="padding: 2px 8px;">×</span>` : ''}`;
                 target.appendChild(tag);
             }
         });
