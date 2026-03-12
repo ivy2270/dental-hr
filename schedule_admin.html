@@ -266,10 +266,14 @@
 
 /* 避免手機長按標籤時跳出選單 */
 .staff-tag, .staff-item {
-    -webkit-touch-callout: none !important;
-    -webkit-user-select: none !important;
-    touch-action: none !important;
-}
+        /* 禁止手機長按彈出選單，避免干擾拖放 */
+        -webkit-touch-callout: none !important;
+        -webkit-user-select: none !important;
+        user-select: none !important;
+        /* 禁止原生觸控行為，解決點擊消失的問題 */
+        touch-action: none !important; 
+        cursor: grab;
+    }
     }
 	
 </style>
@@ -564,90 +568,74 @@ delay: 200,      // 按住 200 毫秒後才觸發拖曳，讓手指快速滑過�
 function initSortableOnElement(el) {
     if (!el || el.dataset.active !== "true") return;
     
-    // 如果該元素已經初始化過，不要重複綁定
+    // 確保每個格子只有一個控制器
     if (el.sortableInstance) {
         el.sortableInstance.destroy();
     }
 
-    const s = new Sortable(el, {
+    el.sortableInstance = new Sortable(el, {
         group: 'shared', 
         animation: 150, 	
         disabled: isReadOnly,
         
-        // --- 針對手機版穩定性修正 ---
-        forceFallback: true,      // 關鍵：強迫手機版使用 JS 模擬，不使用原生 API
-        fallbackOnBody: true,     // 讓標籤拖曳時浮在 body 上，才不會卡在格子裡
-        swapThreshold: 0.65,      // 讓影子出現的判斷更靈敏
-        delay: 150,               // 長按 0.15 秒才開始拖動（手機必備）
+        // --- 手機版相容性關鍵設定 ---
+        forceFallback: true,      // 強迫所有標籤（含舊有的）使用模擬拖曳
+        fallbackOnBody: true,     // 標籤拖動時浮在最上層，不被格子遮住
+        delay: 150,               // 增加微小延遲（0.15秒），區分「捲動網頁」與「拖動標籤」
         delayOnTouchOnly: true,   
-        touchAction: 'none',      // 禁止瀏覽器預設捲動行為干擾
+        touchAction: 'none',
 
-        onAdd: handleOnAdd,       // 將邏輯抽離到專用函數
-        onEnd: function(evt) {
+        onAdd: handleOnAdd,       // 統一處理新增邏輯
+        onEnd: function() {
             document.body.classList.remove('sortable-grabbing');
             updateCounts();
         },
-        onStart: function(evt) {
+        onStart: function() {
             document.body.classList.add('sortable-grabbing');
         }
     });
-    
-    // 將實例存在 DOM 上，防止重複初始化
-    el.sortableInstance = s;
 }
 
 function handleOnAdd(evt) {
     const item = evt.item;
-    const targetZone = evt.to;
     const fromZone = evt.from;
+    const targetZone = evt.to;
     const id = item.dataset.id;
     const isFromPool = item.classList.contains('staff-item');
     
-    // 取得人員姓名
-    let name = "";
-    if (isFromPool) {
-        name = item.querySelector('strong')?.innerText || "";
-    } else {
-        name = item.innerText.replace('×', '').trim();
-    }
+    // 取得姓名
+    const name = isFromPool ? 
+        item.querySelector('strong')?.innerText : 
+        item.innerText.replace('×', '').trim();
 
-    // 1. 重複排班偵測
+    // 檢查是否重複或請假 (沿用您原本的判斷邏輯)
     const allZonesInShift = document.querySelectorAll(`.drop-zone[data-date="${targetZone.dataset.date}"][data-shift="${targetZone.dataset.shift}"]`);
-    let existsElsewhere = false;
+    let isDuplicate = false;
     allZonesInShift.forEach(zone => {
-        if (zone !== targetZone && zone.querySelector(`[data-id="${id}"]`)) existsElsewhere = true;
-        // 檢查目標格內是否有重複的 (除了自己)
-        const currentInZone = zone.querySelectorAll(`[data-id="${id}"]`);
-        if (zone === targetZone && currentInZone.length > 1) existsElsewhere = true;
+        if (zone !== targetZone && zone.querySelector(`[data-id="${id}"]`)) isDuplicate = true;
+        if (zone === targetZone && zone.querySelectorAll(`[data-id="${id}"]`).length > 1) isDuplicate = true;
     });
 
-    // 2. 請假偵測
-    const leaveInfo = checkStaffLeave(id, targetZone.dataset.date, targetZone.dataset.shift);
-
-    if (existsElsewhere || leaveInfo) {
-        if (existsElsewhere) alert(`警告：${name} 在此診已經排過班了！`);
-        if (leaveInfo) alert(`防呆：${name} 在此日期有請假設定 (${leaveInfo})！`);
+    if (isDuplicate || checkStaffLeave(id, targetZone.dataset.date, targetZone.dataset.shift)) {
+        if (isDuplicate) alert(`警告：${name} 已在該診次中`);
         
-        // 驗證失敗：將元素歸位
+        // 關鍵：驗證失敗時，精準退回原位
         if (isFromPool) {
             item.remove();
         } else {
-            // 格子間移動失敗，精準退回原位
-            const referenceNode = fromZone.children[evt.oldIndex];
-            fromZone.insertBefore(item, referenceNode);
+            fromZone.insertBefore(item, fromZone.children[evt.oldIndex]);
         }
         updateCounts();
         return;
     }
 
-    // 3. 驗證成功：如果是從助理池新加入的，轉換標籤樣式
+    // 若成功且是新拉上來的，才轉換樣式
     if (isFromPool) {
         const staffColor = getStaffColor(id);
         item.className = 'staff-tag';
-        item.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
+        item.style.cssText = `background-color: ${staffColor}; color: white; border: none;`;
         item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
     }
-    
     updateCounts();
 }
 
