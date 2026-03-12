@@ -252,17 +252,20 @@
         display: none !important;
     }
 
-    /* 格子感應區 */
+/* 格子感應區 */
     .drop-zone {
-        min-height: 52px !important; /* 加大感應區 */
+        min-height: 52px !important;
         position: relative;
         transition: background-color 0.2s;
+        /* 核心修正：預先塞入透明邊框，避免拖曳瞬間長出虛線導致整體版面位移，造成判定失準 */
+        border: 1px solid transparent !important;
+        box-sizing: border-box !important;
     }
 
     /* 正在拖曳時，所有格子亮起指引 */
     body.sortable-grabbing .drop-zone {
         background-color: rgba(0, 123, 255, 0.08) !important;
-        border: 1px dashed var(--primary) !important;
+        border: 1px dashed var(--primary) !important; /* 有了透明邊框撐場，現在變換不會改變尺寸了 */
     }
 	
 
@@ -604,7 +607,6 @@ document.addEventListener('touchstart', (e) => {
 }, {passive: true});
 document.addEventListener('touchend', () => document.body.classList.remove('sortable-grabbing'));
 
-// --- 拖放邏輯核心優化版 ---
 
 // --- 拖放邏輯核心優化版 ---
 
@@ -646,10 +648,11 @@ function initSortableOnElement(el) {
         animation: 150,
         delay: 50,
         delayOnTouchOnly: true,
+        touchStartThreshold: 10,   // 防止手指稍微抖動就中斷拖曳
         fallbackOnBody: true,
-        revertOnSpill: true, // 防呆：沒放進格子就彈回原位，絕對不消失
-        swapThreshold: 0.4,
-        invertedSwapThreshold: 0.4,
+        revertOnSpill: true,       // 沒丟進格子，原路彈回
+        swapThreshold: 0.5,        // 標準判定比例
+        emptyInsertThreshold: 30,  // 核心優化：大幅增加「空格子」的感應厚度，超級好放！
         dragClass: "sortable-drag",
         ghostClass: "sortable-ghost",
         onStart: () => document.body.classList.add('sortable-grabbing'),
@@ -664,7 +667,7 @@ function initSortableOnElement(el) {
             const date = targetZone.dataset.date;
             const shift = targetZone.dataset.shift;
 
-            // 抓取純名字 (相容助理池與已在班表內的標籤)
+            // 抓取純名字
             let name = "";
             const strongTag = item.querySelector('strong');
             if (strongTag) {
@@ -675,9 +678,14 @@ function initSortableOnElement(el) {
 
             // 防呆驗證
             if (validatePlacement(id, date, shift, name, targetZone, item)) {
-                item.remove();
+                // 核心修正：避免莫名消失！
+                if (evt.pullMode === 'clone') {
+                    item.remove(); // 從助理池拉出來的，直接刪除
+                } else {
+                    evt.from.appendChild(item); // 從其他格子拉過來的，退回原位！
+                }
             } else {
-                // 轉化為正式班表標籤
+                // 驗證過關，轉化為正式班表標籤
                 const staffColor = getStaffColor(id);
                 item.className = 'staff-tag';
                 item.style.cssText = `background-color: ${staffColor}; color: white; border: none;`;
