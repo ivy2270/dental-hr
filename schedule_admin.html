@@ -143,186 +143,135 @@
     margin-left: 5px;
 }
 
-/* =========================================
-   手機版 RWD 優化 (螢幕寬度 < 768px)
-   ========================================= */
-@media (max-width: 768px) {
-    /* 1. 基礎佈局調整 */
-    body { flex-direction: column; }
-    
-    .main-content { 
-        flex: 1; height: auto; overflow-y: auto; 
-        padding: 10px; padding-bottom: 250px; /* 預留底部空間防止被 sidebar 遮擋 */
-        display: flex; flex-direction: column; 
-    }
+    /* =========================================
+       手機版 RWD 優化 (螢幕寬度 < 768px)
+       ========================================= */
+    @media (max-width: 768px) {
+        body { flex-direction: column; }
+        
+        .main-content { 
+            flex: 1; height: auto; overflow-y: auto; 
+            padding: 10px; padding-bottom: 250px; /* 預留底部空間 */
+            display: flex; flex-direction: column; 
+        }
 
-    /* 歷史快照橫幅不縮小 */
-    .view-banner { flex-shrink: 0; }
-    .version-bar { flex-shrink: 0; min-height: 60px; margin: 0 0 10px 0; }
+        /* 歷史快照橫幅不縮小 */
+        .view-banner { flex-shrink: 0; }
+        .version-bar { flex-shrink: 0; min-height: 60px; margin: 0 0 10px 0; }
 
-    /* 底部固定側邊欄 (助理池與按鈕) */
-    .sidebar { 
-        width: 100%; height: auto; position: fixed; bottom: 0; left: 0; 
-        background: #fff; padding: 10px; z-index: 1001; 
-        box-shadow: 0 -3px 10px rgba(0,0,0,0.1); 
-        display: flex; flex-direction: column;
-        overflow: visible !important;            
-    }
+        /* 底部固定側邊欄 */
+        .sidebar { 
+            width: 100%; height: auto; position: fixed; bottom: 0; left: 0; 
+            background: #fff; padding: 10px; z-index: 1001; 
+            box-shadow: 0 -3px 10px rgba(0,0,0,0.1); 
+            display: flex; flex-direction: column;
+			overflow: visible !important;			
+        }
 
-    /* 隱藏手機版標題資訊 */
-    #adminInfo, .sidebar > div:first-child { display: none ; }
+        /* 隱藏手機版標題 */
+        #adminInfo, .sidebar > div:first-child { display: none ; }
 
-    /* 2. 助理池 (橫向滾動) */
-    #staffPool {
+#staffPool {
         display: flex !important;
         flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
-        overflow-y: hidden;
-        touch-action: pan-x !important;
+        flex-wrap: nowrap !important; /* 強制不換行 */
+        overflow-x: auto !important;  /* 明確開啟橫向捲軸 */
+        overflow-y: hidden;           /* 關閉垂直捲軸 */
+		touch-action: pan-x !important;
         -webkit-overflow-scrolling: touch;
-        min-height: 60px;
-        gap: 10px !important;         
+        min-height: 50px;             /* 給捲軸留出空間 */
+		gap: 10px !important;         
         padding: 10px 5px !important;
     }
-
     .staff-item {
-        flex-shrink: 0 !important;
+        flex-shrink: 0 !important;    /* 關鍵：防止寬度被壓縮 */
         min-width: 110px;
-        margin: 0 !important;
-        user-select: none;
-        -webkit-user-select: none;
+		margin: 0 !important;
+		
     }
 
-    .staff-header {
-        width: 100%;
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 4px;
-    }
+		.count-badge {
+            font-size: 9px;
+            padding: 1px 3px;
+            line-height: 1;
+        }
 
-    .count-badge {
-        font-size: 9px;
-        padding: 1px 3px;
-        line-height: 1;
-    }
+        /* 確保助理池內的文字與數字在一行內 */
+        .staff-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 4px;
+        }
 
-    /* 3. 拖放體驗優化 (關鍵！) */
+        /* 月曆容器 (中間) */
+        #datePickerContainer { margin: 5px 0; padding: 5px ; display: block; }
+        
+/* 按鈕區 (最下層) 修正 */
+        .sidebar > div:last-child { 
+            display: flex; 
+            gap: 5px; 
+            margin-top: 5px; 
+            align-items: stretch; /* 強制子元素(按鈕)拉伸填滿高度 */
+        }
 
-    /* 影子 (Ghost)：標籤預計落下的位置 */
-/* 留在原來格子裡、預計落下的虛線框 */
-.sortable-ghost {
-    background-color: rgba(0, 123, 255, 0.15) !important; /* 使用淡藍色暗示可放入 */
-    border: 2px dashed var(--primary) !important;
-    opacity: 1 !important;
-    visibility: visible !important;
-    /* 確保影子在格子裡有固定高度，避免格子縮起來 */
-    min-height: 40px; 
-}
+        .btn-main { 
+            margin-top: 0 !important; 
+            flex: 1; 
+            height: 42px; /* 明確指定高度，確保三個按鈕一模一樣高 */
+            padding: 0 5px; /* 減少內距，讓文字在窄螢幕也能顯示 */
+            font-size: 12px; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1.2;
+            white-space: normal; /* 若按鈕字數過多，允許內部換行但維持總高度 */
+        }
 
- /* ==================================================
-       讓助理池的卡片，被拖起來時瞬間變成小標籤 (取代原本的 JS) 
-       ================================================== */
-    .staff-item.sortable-drag {
-        min-width: unset !important;
-        width: auto !important;
-        padding: 6px 12px !important;
-        background: var(--staff-bg) !important;
-        color: white !important;
-        border: none !important;
-        border-radius: 4px !important;
-    }
-    
-    .staff-item.sortable-drag strong {
-        font-weight: 500 !important;
-        font-size: 13px !important;
-    }
+        /* 班表垂直排列與折疊 */
+        .weekly-container { flex-direction: column; }
+        .day-column { width: 100%; min-width: unset; margin-bottom: 10px; }
+        .day-content { display: none; } /* 手機版預設隱藏 */
+        .day-column.active .day-content { display: block; }
 
-    /* 確保拖曳中的標籤能穿透點擊，直接感應到底下的影子 */
-/* 正在被手指抓著移動的那個元素 */
+        /* 箭頭垂直置中 */
+        .day-header { cursor: pointer; position: relative; padding: 15px; }
+        .day-header::after { 
+            content: '▼'; position: absolute; right: 20px; 
+            top: 50%; transform: translateY(-50%); 
+            font-size: 12px; opacity: 0.5; 
+        }
+        .day-column.active .day-header::after { content: '▲'; }
+        
+        .dr-name-label { width: 55px; font-size: 12px; }
+		
+		/* 正在被拖曳的分身樣式 */
 .sortable-drag {
     opacity: 0.9 !important;
-    z-index: 9999 !important;
-    pointer-events: none !important;
-    /* 不要加 transform: translateY(-30px)，這在某些手機瀏覽器會導致座標偏移 */
-    transform: scale(1.05) !important; 
-    cursor: grabbing;
+    transform: scale(1.1) !important; /* 稍微放大，確認選中 */
+    box-shadow: 0 10px 20px rgba(0,0,0,0.2) !important;
+    z-index: 10002 !important;
+    background-color: var(--staff-bg) !important;
 }
 
-    /* 隱藏拖曳中不需要看到的雜物 */
-    .sortable-drag .count-badge,
-    .sortable-drag .count-row,
-    .sortable-drag .leave-warn,
-    .sortable-drag .remove {
-        display: none !important;
-    }
+/* 預計落下的影子（目標位置） */
+.sortable-ghost {
+    background-color: rgba(0, 123, 255, 0.2) !important;
+    border: 2px dashed var(--primary) !important;
+    visibility: visible !important;
+    min-width: 40px;
+    height: 30px;
+}
 
-/* 格子感應區 */
-    .drop-zone {
-        min-height: 52px !important;
-        position: relative;
-        transition: background-color 0.2s;
-        /* 核心修正：預先塞入透明邊框，避免拖曳瞬間長出虛線導致整體版面位移，造成判定失準 */
-        border: 1px solid transparent !important;
-        box-sizing: border-box !important;
-		overflow: visible !important; /* 絕對不能是 hidden，否則標籤移出邊界會消失 */
-    }
-
-    /* 正在拖曳時，所有格子亮起指引 */
-    body.sortable-grabbing .drop-zone {
-        background-color: rgba(0, 123, 255, 0.08) !important;
-        border: 1px dashed var(--primary) !important; /* 有了透明邊框撐場，現在變換不會改變尺寸了 */
+/* 避免手機長按標籤時跳出選單 */
+.staff-tag, .staff-item {
+    -webkit-touch-callout: none !important;
+    -webkit-user-select: none !important;
+    touch-action: none !important;
+}
     }
 	
-
-    /* 4. 班表顯示與摺疊邏輯 */
-    .weekly-container { flex-direction: column; }
-    .day-column { width: 100%; min-width: unset; margin-bottom: 10px; }
-    .day-content { display: none; } 
-    .day-column.active .day-content { display: block; }
-
-    .day-header { cursor: pointer; position: relative; padding: 15px; }
-    .day-header::after { 
-        content: '▼'; position: absolute; right: 20px; 
-        top: 50%; transform: translateY(-50%); 
-        font-size: 12px; opacity: 0.5; 
-    }
-    .day-column.active .day-header::after { content: '▲'; }
-
-    .dr-name-label { width: 55px; font-size: 12px; }
-    
-/* 1. 嚴格禁止標籤的所有原生觸控行為，全部交給 Sortable 處理 */
-.staff-tag, .staff-item {
-    touch-action: none !important; 
-    user-select: none !important;
-    -webkit-user-select: none;
-    -webkit-touch-callout: none;
-}
-
-    /* 5. 底部按鈕區修正 */
-    #datePickerContainer { margin: 5px 0; padding: 5px ; display: block; }
-
-    .sidebar > div:last-child { 
-        display: flex; 
-        gap: 5px; 
-        margin-top: 5px; 
-        align-items: stretch; 
-    }
-
-    .btn-main { 
-        margin-top: 0 !important; 
-        flex: 1; 
-        height: 42px; 
-        padding: 0 5px; 
-        font-size: 12px; 
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        line-height: 1.2;
-        white-space: normal; 
-    }
-}
 </style>
 </head>
 <body id="appBody">
@@ -579,171 +528,127 @@ function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift,
     `;
 }
 
-function renderStaffPool() {
-    const pool = document.getElementById('staffPool');
-    const assistants = appData.employees.slice(1).filter(e => e[2] === "助理");
-    const selectedDate = document.getElementById('mondayPicker').value;
+    function renderStaffPool() {
+        const pool = document.getElementById('staffPool');
+        const assistants = appData.employees.slice(1).filter(e => e[2] === "助理");
+        const selectedDate = document.getElementById('mondayPicker').value;
 
-    pool.innerHTML = assistants.map(a => {
-        const leaveType = checkStaffLeave(a[0], selectedDate, '全天');
-        const staffColor = getStaffColor(a[0]);
-        return `
-            <div class="staff-item" data-id="${a[0]}" style="border-left: 6px solid ${staffColor};">
-                <div class="staff-header">
-                    <div>
-                        <strong>${a[1]}</strong>
-                        ${leaveType ? `<span class="leave-warn">休:${leaveType}</span>` : ''}
-                    </div>
-                    <div class="count-row" style="text-align:right">
-                        <span class="count-badge bg-neutral" id="month-count-${a[0]}">M:?</span>
-                        <span class="count-badge" id="week-count-${a[0]}">W:0</span>
+        pool.innerHTML = assistants.map(a => {
+            const leaveType = checkStaffLeave(a[0], selectedDate, '全天');
+            const staffColor = getStaffColor(a[0]);
+            return `
+                <div class="staff-item" data-id="${a[0]}" style="border-left: 6px solid ${staffColor} ;">
+                    <div class="staff-header">
+                        <div>
+                            <strong>${a[1]}</strong>
+                            ${leaveType ? `<span class="leave-warn">休:${leaveType}</span>` : ''}
+                        </div>
+                        <div class="count-row" style="text-align:right">
+                            <span class="count-badge bg-neutral" id="month-count-${a[0]}">M:?</span>
+                            <span class="count-badge" id="week-count-${a[0]}">W:0</span>
+                        </div>
                     </div>
                 </div>
-            </div>
-        `;
-    }).join('');
+            `;
+        }).join('');
+        new Sortable(pool, { group: { name: 'shared', pull: 'clone', put: false }, animation: 150,
+delay: 200,      // 按住 200 毫秒後才觸發拖曳，讓手指快速滑過時能順利滾動捲軸
+    delayOnTouchOnly: true, // 只在手機端套用延遲
+		sort: false });
+    }
+
+    // --- 拖放邏輯 ---
+
+    function initSortable() { document.querySelectorAll('.drop-zone').forEach(el => initSortableOnElement(el)); }
     
-    // 渲染完後，重新綁定 Sortable
-    initSortable(); 
-}
-
-// A. 全域監聽器建議放在最外面，只執行一次
-document.addEventListener('dragstart', () => document.body.classList.add('sortable-grabbing'));
-document.addEventListener('dragend', () => document.body.classList.remove('sortable-grabbing'));
-document.addEventListener('touchstart', (e) => {
-    if(e.target.closest('.staff-item') || e.target.closest('.staff-tag')) {
-        document.body.classList.add('sortable-grabbing');
-    }
-}, {passive: true});
-document.addEventListener('touchend', () => document.body.classList.remove('sortable-grabbing'));
-
-
-// --- 拖放邏輯核心優化版 ---
-
-// 在全域宣告一個變數來存儲所有實例
-let activeSortables = []; 
-
-function initSortable() {
-    // 1. 銷毀舊的所有實例，清空記憶體
-    activeSortables.forEach(s => s.destroy());
-    activeSortables = [];
-
-    // 2. 初始化助理池 (Pool)
-    const staffPoolEl = document.getElementById('staffPool');
-    if (staffPoolEl) {
-        const poolS = new Sortable(staffPoolEl, {
-            group: { name: 'shared', pull: 'clone', put: false },
-            sort: false,
-            animation: 150,
-            delay: 100, // 手機版建議 100ms 防止誤觸
-            delayOnTouchOnly: true,
-            touchStartThreshold: 5,
-            fallbackOnBody: true,
-            onStart: () => document.body.classList.add('sortable-grabbing'),
-            onEnd: () => document.body.classList.remove('sortable-grabbing')
-        });
-        activeSortables.push(poolS);
-    }
-
-    // 3. 初始化所有班表格子
-    document.querySelectorAll('.drop-zone').forEach(el => {
-        if (el.dataset.active === "true") {
-            initSortableOnElement(el);
-        }
-    });
-}
-
 function initSortableOnElement(el) {
-    if (!el || el.sortableInstance) return; // 防止重複初始化
+    if (!el || el.dataset.active !== "true") return;
+    
+    // 如果該元素已經初始化過，不要重複綁定
+    if (el.sortableInstance) {
+        el.sortableInstance.destroy();
+    }
 
-    el.sortableInstance = new Sortable(el, {
-        group: 'shared',
-        animation: 150,
+    const s = new Sortable(el, {
+        group: 'shared', 
+        animation: 150, 	
+        disabled: isReadOnly,
         
-        // --- 手機版穩定性核心設定 ---
-        forceFallback: true,      // 關鍵：強迫使用 HTML 模擬拖曳，不使用瀏覽器原生 API
-        fallbackClass: "sortable-drag", 
-        fallbackOnBody: true,     // 讓拖曳中的標籤掛在 body，避免被格子的 overflow 裁切
-        fallbackTolerance: 5,     // 手指移動超過 5px 才觸發，防止誤觸
-        
-        delay: 100,               // 長按 0.1 秒才開始拖動，這對手機操作極其重要
-        delayOnTouchOnly: true,   // 只在手機上啟用延遲
-        
-        onStart: function(evt) {
-            document.body.classList.add('sortable-grabbing');
-            // 手機震動回饋（可選，增加手感）
-            if (navigator.vibrate) navigator.vibrate(20);
-        },
+        // --- 針對手機版穩定性修正 ---
+        forceFallback: true,      // 關鍵：強迫手機版使用 JS 模擬，不使用原生 API
+        fallbackOnBody: true,     // 讓標籤拖曳時浮在 body 上，才不會卡在格子裡
+        swapThreshold: 0.65,      // 讓影子出現的判斷更靈敏
+        delay: 150,               // 長按 0.15 秒才開始拖動（手機必備）
+        delayOnTouchOnly: true,   
+        touchAction: 'none',      // 禁止瀏覽器預設捲動行為干擾
+
+        onAdd: handleOnAdd,       // 將邏輯抽離到專用函數
         onEnd: function(evt) {
             document.body.classList.remove('sortable-grabbing');
             updateCounts();
         },
-        onAdd: handleOnAdd
+        onStart: function(evt) {
+            document.body.classList.add('sortable-grabbing');
+        }
     });
+    
+    // 將實例存在 DOM 上，防止重複初始化
+    el.sortableInstance = s;
 }
 
 function handleOnAdd(evt) {
     const item = evt.item;
-    const fromZone = evt.from;   // 來源格子
-    const targetZone = evt.to;   // 目標格子
-    const isFromPool = (evt.pullMode === 'clone');
-    
-    // 取得人員資訊
+    const targetZone = evt.to;
+    const fromZone = evt.from;
     const id = item.dataset.id;
-    const strongTag = item.querySelector('strong');
-    const name = strongTag ? strongTag.innerText.trim() : item.innerText.replace('×', '').trim();
+    const isFromPool = item.classList.contains('staff-item');
+    
+    // 取得人員姓名
+    let name = "";
+    if (isFromPool) {
+        name = item.querySelector('strong')?.innerText || "";
+    } else {
+        name = item.innerText.replace('×', '').trim();
+    }
 
-    // 驗證邏輯
-    if (validatePlacement(id, targetZone.dataset.date, targetZone.dataset.shift, name, targetZone, item)) {
-        // 如果驗證失敗
+    // 1. 重複排班偵測
+    const allZonesInShift = document.querySelectorAll(`.drop-zone[data-date="${targetZone.dataset.date}"][data-shift="${targetZone.dataset.shift}"]`);
+    let existsElsewhere = false;
+    allZonesInShift.forEach(zone => {
+        if (zone !== targetZone && zone.querySelector(`[data-id="${id}"]`)) existsElsewhere = true;
+        // 檢查目標格內是否有重複的 (除了自己)
+        const currentInZone = zone.querySelectorAll(`[data-id="${id}"]`);
+        if (zone === targetZone && currentInZone.length > 1) existsElsewhere = true;
+    });
+
+    // 2. 請假偵測
+    const leaveInfo = checkStaffLeave(id, targetZone.dataset.date, targetZone.dataset.shift);
+
+    if (existsElsewhere || leaveInfo) {
+        if (existsElsewhere) alert(`警告：${name} 在此診已經排過班了！`);
+        if (leaveInfo) alert(`防呆：${name} 在此日期有請假設定 (${leaveInfo})！`);
+        
+        // 驗證失敗：將元素歸位
         if (isFromPool) {
-            item.remove(); // 從助理池拉過來的，直接銷毀
+            item.remove();
         } else {
-            // 關鍵修正：從格子移動格子的，精準退回原位
+            // 格子間移動失敗，精準退回原位
             const referenceNode = fromZone.children[evt.oldIndex];
             fromZone.insertBefore(item, referenceNode);
         }
+        updateCounts();
         return;
     }
 
-    // 如果驗證成功，且是從助理池來的新標籤，才重新格式化
+    // 3. 驗證成功：如果是從助理池新加入的，轉換標籤樣式
     if (isFromPool) {
         const staffColor = getStaffColor(id);
         item.className = 'staff-tag';
-        item.style.cssText = `background-color: ${staffColor}; color: white;`;
+        item.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
         item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
     }
     
     updateCounts();
-}
-
-// 檢查邏輯保持您的原版不變
-function validatePlacement(id, date, shift, name, targetEl, currentItem) {
-    const allZonesInShift = document.querySelectorAll(`.drop-zone[data-date="${date}"][data-shift="${shift}"]`);
-    let existsElsewhere = false;
-
-    allZonesInShift.forEach(zone => {
-        // 找到該格子內的所有標籤
-        const tags = zone.querySelectorAll('.staff-tag');
-        tags.forEach(tag => {
-            // 關鍵：如果這張標籤跟我是同一個人，且「不是我本人（DOM 不同）」，才算重複
-            if (tag.dataset.id === id && tag !== currentItem) {
-                existsElsewhere = true;
-            }
-        });
-    });
-
-    if (existsElsewhere) {
-        alert(`警告：${name} 在 ${date} ${shift}診 已經排過班了！`);
-        return true;
-    }
-    
-    const leaveInfo = checkStaffLeave(id, date, shift); 
-    if (leaveInfo) {
-        alert(`防呆：${name} 在 ${date} 有請假設定 (${leaveInfo})！`);
-        return true;
-    }
-    return false;
 }
 
     // --- 資料填充與存檔 ---
