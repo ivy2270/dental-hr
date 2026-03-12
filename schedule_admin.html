@@ -643,29 +643,33 @@ function initSortable() {
 }
 
 function initSortableOnElement(el) {
+    if (!el || el.dataset.active !== "true") return;
+    
     new Sortable(el, {
         group: 'shared',
         animation: 150,
         delay: 50,
         delayOnTouchOnly: true,
-        touchStartThreshold: 10,   // 防止手指稍微抖動就中斷拖曳
         fallbackOnBody: true,
-        revertOnSpill: true,       // 沒丟進格子，原路彈回
-        swapThreshold: 0.5,        // 標準判定比例
-        emptyInsertThreshold: 30,  // 核心優化：大幅增加「空格子」的感應厚度，超級好放！
+        swapThreshold: 0.5,
+        emptyInsertThreshold: 50,
+        revertOnSpill: true,
         dragClass: "sortable-drag",
         ghostClass: "sortable-ghost",
         onStart: () => document.body.classList.add('sortable-grabbing'),
         onEnd: () => {
             document.body.classList.remove('sortable-grabbing');
-            updateCounts();
+            updateCounts(); // 只要放手就重新計算
         },
         onAdd: function (evt) {
-            const targetZone = evt.to;
             const item = evt.item;
+            const targetZone = evt.to;
             const id = item.dataset.id;
             const date = targetZone.dataset.date;
             const shift = targetZone.dataset.shift;
+
+            // 判斷來源：如果 pullMode 是 'clone'，表示這是從「助理池」拉過來的新標籤
+            const isFromPool = (evt.pullMode === 'clone');
 
             // 抓取純名字
             let name = "";
@@ -676,21 +680,29 @@ function initSortableOnElement(el) {
                 name = item.innerText.replace('×', '').trim();
             }
 
-            // 防呆驗證
+            // 執行防呆驗證
             if (validatePlacement(id, date, shift, name, targetZone, item)) {
-                // 核心修正：避免莫名消失！
-                if (evt.pullMode === 'clone') {
-                    item.remove(); // 從助理池拉出來的，直接刪除
+                if (isFromPool) {
+                    item.remove(); // 池子拉出來的直接刪掉
                 } else {
-                    evt.from.appendChild(item); // 從其他格子拉過來的，退回原位！
+                    evt.from.appendChild(item); // 已經在班表上的，退回原本的格子
                 }
-            } else {
-                // 驗證過關，轉化為正式班表標籤
+                return;
+            }
+
+            // --- 核心邏輯修正 ---
+            if (isFromPool) {
+                // A. 如果是從「助理池」拉過來的，才需要把它「變身」成正式標籤樣式
                 const staffColor = getStaffColor(id);
                 item.className = 'staff-tag';
                 item.style.cssText = `background-color: ${staffColor}; color: white; border: none;`;
-                item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();" ontouchend="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
+                item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
+            } else {
+                // B. 如果本來就在格子間移動，SortableJS 已經把 DOM 移過去了
+                // 我們什麼都不用做！看到影子放手，它就會停在影子的位置。
+                console.log("格子間移動成功:", name);
             }
+
             updateCounts();
         },
         onUpdate: updateCounts,
