@@ -143,95 +143,163 @@
     margin-left: 5px;
 }
 
-/* =========================================
-   手機版 RWD 優化 (螢幕寬度 < 768px)
-   ========================================= */
-@media (max-width: 768px) {
-    body { flex-direction: column; }
-    
-    .main-content { 
-        flex: 1; height: auto; overflow-y: auto; 
-        padding: 10px; padding-bottom: 250px; 
-        display: flex; flex-direction: column; 
-    }
+    /* =========================================
+       手機版 RWD 優化 (螢幕寬度 < 768px)
+       ========================================= */
+    @media (max-width: 768px) {
+        body { flex-direction: column; }
+        
+        .main-content { 
+            flex: 1; height: auto; overflow-y: auto; 
+            padding: 10px; padding-bottom: 250px; /* 預留底部空間 */
+            display: flex; flex-direction: column; 
+        }
 
-    .sidebar { 
-        width: 100%; height: auto; position: fixed; bottom: 0; left: 0; 
-        background: #fff; padding: 10px; z-index: 1001; 
-        box-shadow: 0 -3px 10px rgba(0,0,0,0.1); 
-        display: flex; flex-direction: column;
-        overflow: visible !important;            
-    }
+        /* 歷史快照橫幅不縮小 */
+        .view-banner { flex-shrink: 0; }
+        .version-bar { flex-shrink: 0; min-height: 60px; margin: 0 0 10px 0; }
 
-    /* 隱藏手機版不必要的資訊 */
-    #adminInfo, .sidebar > div:first-child { display: none ; }
+        /* 底部固定側邊欄 */
+        .sidebar { 
+            width: 100%; height: auto; position: fixed; bottom: 0; left: 0; 
+            background: #fff; padding: 10px; z-index: 1001; 
+            box-shadow: 0 -3px 10px rgba(0,0,0,0.1); 
+            display: flex; flex-direction: column;
+			overflow: visible !important;			
+        }
 
-    /* 助理池橫向滑動優化 */
-    #staffPool {
+        /* 隱藏手機版標題 */
+        #adminInfo, .sidebar > div:first-child { display: none ; }
+
+#staffPool {
         display: flex !important;
         flex-direction: row !important;
-        flex-wrap: nowrap !important;
-        overflow-x: auto !important;
-        touch-action: pan-x !important;
+        flex-wrap: nowrap !important; /* 強制不換行 */
+        overflow-x: auto !important;  /* 明確開啟橫向捲軸 */
+        overflow-y: hidden;           /* 關閉垂直捲軸 */
+		touch-action: pan-x !important;
         -webkit-overflow-scrolling: touch;
-        min-height: 60px;
-        gap: 10px !important;         
+        min-height: 50px;             /* 給捲軸留出空間 */
+		gap: 10px !important;         
         padding: 10px 5px !important;
     }
-
     .staff-item {
-        flex-shrink: 0 !important;
+        flex-shrink: 0 !important;    /* 關鍵：防止寬度被壓縮 */
         min-width: 110px;
-        margin: 0 !important;
-        user-select: none;
+		margin: 0 !important;
+		
     }
 
-    /* --- 拖放體驗終極優化 --- */
+		.count-badge {
+            font-size: 9px;
+            padding: 1px 3px;
+            line-height: 1;
+        }
 
-    /* 1. 拖曳中的實體：穿透判定、隱藏數字與刪除鈕 */
+        /* 確保助理池內的文字與數字在一行內 */
+        .staff-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* 月曆容器 (中間) */
+        #datePickerContainer { margin: 5px 0; padding: 5px ; display: block; }
+        
+/* 按鈕區 (最下層) 修正 */
+        .sidebar > div:last-child { 
+            display: flex; 
+            gap: 5px; 
+            margin-top: 5px; 
+            align-items: stretch; /* 強制子元素(按鈕)拉伸填滿高度 */
+        }
+
+        .btn-main { 
+            margin-top: 0 !important; 
+            flex: 1; 
+            height: 42px; /* 明確指定高度，確保三個按鈕一模一樣高 */
+            padding: 0 5px; /* 減少內距，讓文字在窄螢幕也能顯示 */
+            font-size: 12px; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1.2;
+            white-space: normal; /* 若按鈕字數過多，允許內部換行但維持總高度 */
+        }
+
+        /* 班表垂直排列與折疊 */
+        .weekly-container { flex-direction: column; }
+        .day-column { width: 100%; min-width: unset; margin-bottom: 10px; }
+        .day-content { display: none; } /* 手機版預設隱藏 */
+        .day-column.active .day-content { display: block; }
+
+        /* 箭頭垂直置中 */
+        .day-header { cursor: pointer; position: relative; padding: 15px; }
+        .day-header::after { 
+            content: '▼'; position: absolute; right: 20px; 
+            top: 50%; transform: translateY(-50%); 
+            font-size: 12px; opacity: 0.5; 
+        }
+        .day-column.active .day-header::after { content: '▲'; }
+        
+        .dr-name-label { width: 55px; font-size: 12px; }
+		
+.staff-item, .staff-tag {
+    /* 不要用 touch-action: none，這會讓捲軸失效 */
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+
+/* 1. 正在被手指拖著走的那個標籤 */
     .sortable-drag {
         opacity: 0.8 !important;
         transform: scale(1.05) !important;
         background: var(--staff-bg) !important;
         z-index: 9999 !important;
-        pointer-events: none !important; /* 關鍵：手指判定直接穿透到底下格子 */
+        /* 極其重要：讓觸控直接穿透標籤，直接指到影子的位置 */
+        pointer-events: none !important; 
     }
-    
-    .sortable-drag .count-badge, 
-    .sortable-drag .remove {
-        display: none !important; /* 拖曳中保持名字乾淨，防止誤觸 X */
-    }
+	
+	/* 在拖曳中，隱藏克隆體內的數字 (統計數據) */
+.sortable-drag .count-badge {
+    display: none !important;
+}
 
-    /* 2. 灰色影子 (準星) */
+    /* 2. 留在格子裡的影子（你希望維持灰色） */
     .sortable-ghost {
         opacity: 0.4 !important;
-        background: #999 !important;
+        background: #999 !important; /* 維持灰色 */
         border: 1px dashed #333 !important;
         visibility: visible !important;
     }
 
-    /* 3. 格子感應與亮起引導 */
+    /* 3. 防止在拖曳時誤觸 X 刪除鈕 */
+    .sortable-drag .remove {
+        display: none !important;
+    }
+
+    /* 4. 增加格子感應區 */
     .drop-zone {
         min-height: 48px !important;
         background-color: rgba(255,255,255,0.5);
-        transition: background-color 0.2s;
     }
 
-    body.sortable-grabbing .drop-zone {
-        background-color: rgba(0, 123, 255, 0.12) !important;
-        border: 2px dashed var(--primary) !important;
-    }
-
-    /* --- 其他排版微調 --- */
-    .btn-main { 
-        flex: 1; height: 42px; font-size: 12px;
-        display: flex; align-items: center; justify-content: center;
-    }
-
-    .day-header { padding: 15px; }
-    .day-header::after { content: '▼'; position: absolute; right: 20px; top: 50%; transform: translateY(-50%); }
-    .day-column.active .day-header::after { content: '▲'; }
+/* 4. 正在拖曳時，讓所有格子亮起來（指引感） */
+body.sortable-grabbing .drop-zone {
+    background-color: rgba(0,123,255,0.08) !important;
+    border: 1px dashed var(--primary) !important;
 }
+
+/* 5. 禁止手機選取文字干擾拖放 */
+.staff-tag, .staff-item {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
+    }
 </style>
 </head>
 <body id="appBody">
