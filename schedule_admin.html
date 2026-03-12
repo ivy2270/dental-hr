@@ -143,163 +143,154 @@
     margin-left: 5px;
 }
 
-    /* =========================================
-       手機版 RWD 優化 (螢幕寬度 < 768px)
-       ========================================= */
-    @media (max-width: 768px) {
-        body { flex-direction: column; }
-        
-        .main-content { 
-            flex: 1; height: auto; overflow-y: auto; 
-            padding: 10px; padding-bottom: 250px; /* 預留底部空間 */
-            display: flex; flex-direction: column; 
-        }
+/* =========================================
+   手機版 RWD 優化 (螢幕寬度 < 768px)
+   ========================================= */
+@media (max-width: 768px) {
+    /* 1. 基礎佈局調整 */
+    body { flex-direction: column; }
+    
+    .main-content { 
+        flex: 1; height: auto; overflow-y: auto; 
+        padding: 10px; padding-bottom: 250px; /* 預留底部空間防止被 sidebar 遮擋 */
+        display: flex; flex-direction: column; 
+    }
 
-        /* 歷史快照橫幅不縮小 */
-        .view-banner { flex-shrink: 0; }
-        .version-bar { flex-shrink: 0; min-height: 60px; margin: 0 0 10px 0; }
+    /* 歷史快照橫幅不縮小 */
+    .view-banner { flex-shrink: 0; }
+    .version-bar { flex-shrink: 0; min-height: 60px; margin: 0 0 10px 0; }
 
-        /* 底部固定側邊欄 */
-        .sidebar { 
-            width: 100%; height: auto; position: fixed; bottom: 0; left: 0; 
-            background: #fff; padding: 10px; z-index: 1001; 
-            box-shadow: 0 -3px 10px rgba(0,0,0,0.1); 
-            display: flex; flex-direction: column;
-			overflow: visible !important;			
-        }
+    /* 底部固定側邊欄 (助理池與按鈕) */
+    .sidebar { 
+        width: 100%; height: auto; position: fixed; bottom: 0; left: 0; 
+        background: #fff; padding: 10px; z-index: 1001; 
+        box-shadow: 0 -3px 10px rgba(0,0,0,0.1); 
+        display: flex; flex-direction: column;
+        overflow: visible !important;            
+    }
 
-        /* 隱藏手機版標題 */
-        #adminInfo, .sidebar > div:first-child { display: none ; }
+    /* 隱藏手機版標題資訊 */
+    #adminInfo, .sidebar > div:first-child { display: none ; }
 
-#staffPool {
+    /* 2. 助理池 (橫向滾動) */
+    #staffPool {
         display: flex !important;
         flex-direction: row !important;
-        flex-wrap: nowrap !important; /* 強制不換行 */
-        overflow-x: auto !important;  /* 明確開啟橫向捲軸 */
-        overflow-y: hidden;           /* 關閉垂直捲軸 */
-		touch-action: pan-x !important;
+        flex-wrap: nowrap !important;
+        overflow-x: auto !important;
+        overflow-y: hidden;
+        touch-action: pan-x !important;
         -webkit-overflow-scrolling: touch;
-        min-height: 50px;             /* 給捲軸留出空間 */
-		gap: 10px !important;         
+        min-height: 60px;
+        gap: 10px !important;         
         padding: 10px 5px !important;
     }
+
     .staff-item {
-        flex-shrink: 0 !important;    /* 關鍵：防止寬度被壓縮 */
+        flex-shrink: 0 !important;
         min-width: 110px;
-		margin: 0 !important;
-		
+        margin: 0 !important;
+        user-select: none;
+        -webkit-user-select: none;
     }
 
-		.count-badge {
-            font-size: 9px;
-            padding: 1px 3px;
-            line-height: 1;
-        }
-
-        /* 確保助理池內的文字與數字在一行內 */
-        .staff-header {
-            width: 100%;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            gap: 4px;
-        }
-
-        /* 月曆容器 (中間) */
-        #datePickerContainer { margin: 5px 0; padding: 5px ; display: block; }
-        
-/* 按鈕區 (最下層) 修正 */
-        .sidebar > div:last-child { 
-            display: flex; 
-            gap: 5px; 
-            margin-top: 5px; 
-            align-items: stretch; /* 強制子元素(按鈕)拉伸填滿高度 */
-        }
-
-        .btn-main { 
-            margin-top: 0 !important; 
-            flex: 1; 
-            height: 42px; /* 明確指定高度，確保三個按鈕一模一樣高 */
-            padding: 0 5px; /* 減少內距，讓文字在窄螢幕也能顯示 */
-            font-size: 12px; 
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            line-height: 1.2;
-            white-space: normal; /* 若按鈕字數過多，允許內部換行但維持總高度 */
-        }
-
-        /* 班表垂直排列與折疊 */
-        .weekly-container { flex-direction: column; }
-        .day-column { width: 100%; min-width: unset; margin-bottom: 10px; }
-        .day-content { display: none; } /* 手機版預設隱藏 */
-        .day-column.active .day-content { display: block; }
-
-        /* 箭頭垂直置中 */
-        .day-header { cursor: pointer; position: relative; padding: 15px; }
-        .day-header::after { 
-            content: '▼'; position: absolute; right: 20px; 
-            top: 50%; transform: translateY(-50%); 
-            font-size: 12px; opacity: 0.5; 
-        }
-        .day-column.active .day-header::after { content: '▲'; }
-        
-        .dr-name-label { width: 55px; font-size: 12px; }
-		
-.staff-item, .staff-tag {
-    /* 不要用 touch-action: none，這會讓捲軸失效 */
-    user-select: none;
-    -webkit-user-select: none;
-}
-
-
-/* 1. 正在被手指拖著走的那個標籤 */
-    .sortable-drag {
-        opacity: 0.8 !important;
-        transform: scale(1.05) !important;
-        background: var(--staff-bg) !important;
-        z-index: 9999 !important;
-        /* 極其重要：讓觸控直接穿透標籤，直接指到影子的位置 */
-        pointer-events: none !important; 
+    .staff-header {
+        width: 100%;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 4px;
     }
-	
-	/* 在拖曳中，隱藏克隆體內的數字 (統計數據) */
-.sortable-drag .count-badge {
-    display: none !important;
-}
 
-    /* 2. 留在格子裡的影子（你希望維持灰色） */
+    .count-badge {
+        font-size: 9px;
+        padding: 1px 3px;
+        line-height: 1;
+    }
+
+    /* 3. 拖放體驗優化 (關鍵！) */
+
+    /* 影子 (Ghost)：標籤預計落下的位置 */
     .sortable-ghost {
-        opacity: 0.4 !important;
-        background: #999 !important; /* 維持灰色 */
-        border: 1px dashed #333 !important;
+        background-color: #ffc107 !important; /* 顯眼的黃色引導 */
+        opacity: 0.5 !important;
+        border: 2px dashed #333 !important;
         visibility: visible !important;
     }
 
-    /* 3. 防止在拖曳時誤觸 X 刪除鈕 */
+    /* 拖曳中的實體 (Drag)：手指下的那個標籤 */
+    .sortable-drag {
+        pointer-events: none !important; /* 核心：穿透判定，讓手指壓力指到底下的格子 */
+        opacity: 0.9 !important;
+        transform: scale(1.1);
+        z-index: 9999 !important;
+    }
+
+    /* 拖曳時隱藏不需要的元素 (數字、統計、刪除鈕) */
+    .sortable-drag .count-badge,
+    .sortable-drag .count-row,
+    .sortable-drag .leave-warn,
     .sortable-drag .remove {
         display: none !important;
     }
 
-    /* 4. 增加格子感應區 */
+    /* 格子感應區 */
     .drop-zone {
-        min-height: 48px !important;
-        background-color: rgba(255,255,255,0.5);
+        min-height: 52px !important; /* 加大感應區 */
+        position: relative;
+        transition: background-color 0.2s;
     }
 
-/* 4. 正在拖曳時，讓所有格子亮起來（指引感） */
-body.sortable-grabbing .drop-zone {
-    background-color: rgba(0,123,255,0.08) !important;
-    border: 1px dashed var(--primary) !important;
-}
-
-/* 5. 禁止手機選取文字干擾拖放 */
-.staff-tag, .staff-item {
-    -webkit-user-select: none;
-    user-select: none;
-}
-
+    /* 正在拖曳時，所有格子亮起指引 */
+    body.sortable-grabbing .drop-zone {
+        background-color: rgba(0, 123, 255, 0.08) !important;
+        border: 1px dashed var(--primary) !important;
     }
+
+    /* 4. 班表顯示與摺疊邏輯 */
+    .weekly-container { flex-direction: column; }
+    .day-column { width: 100%; min-width: unset; margin-bottom: 10px; }
+    .day-content { display: none; } 
+    .day-column.active .day-content { display: block; }
+
+    .day-header { cursor: pointer; position: relative; padding: 15px; }
+    .day-header::after { 
+        content: '▼'; position: absolute; right: 20px; 
+        top: 50%; transform: translateY(-50%); 
+        font-size: 12px; opacity: 0.5; 
+    }
+    .day-column.active .day-header::after { content: '▲'; }
+
+    .dr-name-label { width: 55px; font-size: 12px; }
+    
+    .staff-tag {
+        user-select: none;
+        -webkit-user-select: none;
+    }
+
+    /* 5. 底部按鈕區修正 */
+    #datePickerContainer { margin: 5px 0; padding: 5px ; display: block; }
+
+    .sidebar > div:last-child { 
+        display: flex; 
+        gap: 5px; 
+        margin-top: 5px; 
+        align-items: stretch; 
+    }
+
+    .btn-main { 
+        margin-top: 0 !important; 
+        flex: 1; 
+        height: 42px; 
+        padding: 0 5px; 
+        font-size: 12px; 
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        line-height: 1.2;
+        white-space: normal; 
+    }
+}
 </style>
 </head>
 <body id="appBody">
@@ -556,34 +547,33 @@ function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift,
     `;
 }
 
-    function renderStaffPool() {
-        const pool = document.getElementById('staffPool');
-        const assistants = appData.employees.slice(1).filter(e => e[2] === "助理");
-        const selectedDate = document.getElementById('mondayPicker').value;
+function renderStaffPool() {
+    const pool = document.getElementById('staffPool');
+    const assistants = appData.employees.slice(1).filter(e => e[2] === "助理");
+    const selectedDate = document.getElementById('mondayPicker').value;
 
-        pool.innerHTML = assistants.map(a => {
-            const leaveType = checkStaffLeave(a[0], selectedDate, '全天');
-            const staffColor = getStaffColor(a[0]);
-            return `
-                <div class="staff-item" data-id="${a[0]}" style="border-left: 6px solid ${staffColor} ;">
-                    <div class="staff-header">
-                        <div>
-                            <strong>${a[1]}</strong>
-                            ${leaveType ? `<span class="leave-warn">休:${leaveType}</span>` : ''}
-                        </div>
-                        <div class="count-row" style="text-align:right">
-                            <span class="count-badge bg-neutral" id="month-count-${a[0]}">M:?</span>
-                            <span class="count-badge" id="week-count-${a[0]}">W:0</span>
-                        </div>
+    pool.innerHTML = assistants.map(a => {
+        const leaveType = checkStaffLeave(a[0], selectedDate, '全天');
+        const staffColor = getStaffColor(a[0]);
+        return `
+            <div class="staff-item" data-id="${a[0]}" style="border-left: 6px solid ${staffColor};">
+                <div class="staff-header">
+                    <div>
+                        <strong>${a[1]}</strong>
+                        ${leaveType ? `<span class="leave-warn">休:${leaveType}</span>` : ''}
+                    </div>
+                    <div class="count-row" style="text-align:right">
+                        <span class="count-badge bg-neutral" id="month-count-${a[0]}">M:?</span>
+                        <span class="count-badge" id="week-count-${a[0]}">W:0</span>
                     </div>
                 </div>
-            `;
-        }).join('');
-        new Sortable(pool, { group: { name: 'shared', pull: 'clone', put: false }, animation: 150,
-delay: 200,      // 按住 200 毫秒後才觸發拖曳，讓手指快速滑過時能順利滾動捲軸
-    delayOnTouchOnly: true, // 只在手機端套用延遲
-		sort: false });
-    }
+            </div>
+        `;
+    }).join('');
+    
+    // 渲染完後，重新綁定 Sortable
+    initSortable(); 
+}
 
     // --- 拖放邏輯 ---
 
@@ -602,31 +592,32 @@ document.addEventListener('touchend', () => document.body.classList.remove('sort
 // --- 拖放邏輯核心優化版 ---
 
 function initSortable() {
-    if (typeof Sortable.mount === 'function') {
-        try { Sortable.mount(new Sortable.AutoScroll()); } catch(e){}
-    }
-
-    // 1. 初始化助理池
+    // 銷毀舊的實例防止重複綁定
+    if (window.staffPoolSortable) window.staffPoolSortable.destroy();
+    
     const staffPoolEl = document.getElementById('staffPool');
     if (staffPoolEl) {
-        new Sortable(staffPoolEl, {
+        window.staffPoolSortable = new Sortable(staffPoolEl, {
             group: { name: 'shared', pull: 'clone', put: false },
             sort: false,
             animation: 150,
-            delay: 120,             // 給予足夠延遲區分滑動與拖曳
+            delay: 120,
             delayOnTouchOnly: true,
             touchStartThreshold: 10,
             fallbackOnBody: true,
-            // 關鍵：從池子拉出的一瞬間就過濾掉數字，全程只顯示名字
-            onClone: (evt) => {
-                const clone = evt.clone;
-                const orig = evt.item;
-                const name = orig.querySelector('strong')?.innerText || orig.innerText;
-                // 拖曳中的視覺只保留名字
-                clone.innerHTML = `<strong>${name}</strong>`;
-                clone.style.opacity = "1";
+            // 關鍵修正：處理「正在拖曳」的那個實體
+            onStart: function (evt) {
+                document.body.classList.add('sortable-grabbing');
+                const item = evt.item; // 手指抓著的這個標籤
+                const name = item.querySelector('strong')?.innerText || "";
+                
+                // 立即把拖曳中的標籤洗乾淨，只留名字
+                item.innerHTML = `<strong>${name}</strong>`;
+                item.style.padding = "8px 12px";
+                item.style.background = "var(--staff-bg)";
+                item.style.color = "white";
+                item.style.borderRadius = "4px";
             },
-            onStart: () => document.body.classList.add('sortable-grabbing'),
             onEnd: () => {
                 document.body.classList.remove('sortable-grabbing');
                 updateCounts();
@@ -634,60 +625,47 @@ function initSortable() {
         });
     }
 
-    // 2. 初始化班表格子
-    document.querySelectorAll('.drop-zone').forEach(el => initSortableOnElement(el));
+    // 初始化所有班表格子
+    document.querySelectorAll('.drop-zone').forEach(el => {
+        if (el.dataset.active === "true") initSortableOnElement(el);
+    });
 }
 
 function initSortableOnElement(el) {
-    if (!el || el.dataset.active !== "true") return;
-    const s = new Sortable(el, {
+    new Sortable(el, {
         group: 'shared',
         animation: 150,
-        disabled: isReadOnly,
         delay: 50,
         delayOnTouchOnly: true,
-        revertOnSpill: true,         // 沒放準就彈回，絕不消失
         fallbackOnBody: true,
-        fallbackTolerance: 5,        // 容忍微小抖動
-        swapThreshold: 0.3,          // 提高靈敏度，碰到 30% 就吸過去
-        invertedSwapThreshold: 0.3,
+        swapThreshold: 0.4,
         dragClass: "sortable-drag",
         ghostClass: "sortable-ghost",
-        
-        onStart: () => document.body.classList.add('sortable-grabbing'),
-        onAdd: (evt) => {
-            const id = evt.item.dataset.id;
-            const date = el.dataset.date;
-            const shift = el.dataset.shift;
-            
-            // 取得純名字 (排除 × 或助理池的診次數)
-            let name = "";
-            const strongTag = evt.item.querySelector('strong');
-            if (strongTag) {
-                name = strongTag.innerText.trim();
-            } else {
-                name = evt.item.innerText.replace('×', '').trim();
-            }
+        onAdd: function (evt) {
+            const targetZone = evt.to;
+            const item = evt.item;
+            const id = item.dataset.id;
+            const date = targetZone.dataset.date;
+            const shift = targetZone.dataset.shift;
 
-            const isInvalid = validatePlacement(id, date, shift, name, el, evt.item);
-            
-            if (isInvalid) {
-                evt.item.remove();
+            // 抓取純名字
+            let name = item.querySelector('strong')?.innerText || item.innerText.replace('×', '').trim();
+
+            // 防呆驗證
+            if (validatePlacement(id, date, shift, name, targetZone, item)) {
+                item.remove();
             } else {
+                // 轉化為正式班表標籤
                 const staffColor = getStaffColor(id);
-                evt.item.className = 'staff-tag';
-                evt.item.style.cssText = `background-color: ${staffColor}; color: white; border: none;`;
-                evt.item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();" style="padding: 2px 8px;">×</span>`;
+                item.className = 'staff-tag';
+                item.style.cssText = `background-color: ${staffColor}; color: white; border: none;`;
+                item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
             }
             updateCounts();
         },
-        onEnd: () => {
-            document.body.classList.remove('sortable-grabbing');
-            updateCounts();
-        },
-        onUpdate: updateCounts
+        onUpdate: updateCounts,
+        onRemove: updateCounts
     });
-    sortables.push(s);
 }
 
 // 檢查邏輯保持您的原版不變
