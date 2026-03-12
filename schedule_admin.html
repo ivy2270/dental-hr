@@ -259,19 +259,24 @@
     transition: background-color 0.2s;
 }
 
-/* 2. 拖起時的視覺效果：放大並加上陰影，防止被手指擋住看不見 */
+/* 2. 拖起時的視覺效果 */
 .sortable-drag {
-    opacity: 1 !important;
-    transform: scale(1.15); /* 拖起來時放大 15% */
+    opacity: 0.8 !important; /* 稍微透明一點，更有「飄浮」感 */
+    transform: scale(1.1) !important; 
     box-shadow: 0 8px 20px rgba(0,0,0,0.3) !important;
     background: var(--staff-bg) !important;
     z-index: 9999 !important;
+    
+    /* 關鍵新增：讓觸控判定穿透，直接偵測底下的格子 */
+    pointer-events: none !important; 
 }
 
-/* 3. 留在原地的影子：讓你知道原本在哪格 */
+/* 3. 留在原地的影子：你的「準星」 */
 .sortable-ghost {
-    opacity: 0.2 !important;
-    background: #000 !important;
+    opacity: 0.5 !important; /* 提高一點透明度，讓你更看得到影子 */
+    background: #ffc107 !important; /* 改成醒目的黃色或亮色，方便辨認位置 */
+    border: 2px solid #333 !important;
+    visibility: visible !important;
 }
 
 /* 4. 正在拖曳時，讓所有格子亮起來（指引感） */
