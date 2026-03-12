@@ -247,10 +247,6 @@
         border: 1px dashed var(--primary) !important;
     }
 	
-	/* 讓彈回原位的動作有動畫效果 */
-.sortable-fallback {
-    transition: transform 0.2s ease-in-out !important;
-}
 
     /* 4. 班表顯示與摺疊邏輯 */
     .weekly-container { flex-direction: column; }
@@ -593,10 +589,9 @@ document.addEventListener('touchend', () => document.body.classList.remove('sort
 // --- 拖放邏輯核心優化版 ---
 
 function initSortable() {
-    // 銷毀舊實例防止衝突
+    // 銷毀舊的實例防止重複綁定
     if (window.staffPoolSortable) window.staffPoolSortable.destroy();
     
-    // 1. 初始化助理池 (從底部拉出來的地方)
     const staffPoolEl = document.getElementById('staffPool');
     if (staffPoolEl) {
         window.staffPoolSortable = new Sortable(staffPoolEl, {
@@ -607,13 +602,13 @@ function initSortable() {
             delayOnTouchOnly: true,
             touchStartThreshold: 10,
             fallbackOnBody: true,
-            // 修正：如果拉到一半放掉，讓它彈回助理池
-            revertOnSpill: true, 
+            // 關鍵修正：處理「正在拖曳」的那個實體
             onStart: function (evt) {
                 document.body.classList.add('sortable-grabbing');
-                // 立即清理拖曳視覺
-                const item = evt.item;
+                const item = evt.item; // 手指抓著的這個標籤
                 const name = item.querySelector('strong')?.innerText || "";
+                
+                // 立即把拖曳中的標籤洗乾淨，只留名字
                 item.innerHTML = `<strong>${name}</strong>`;
                 item.style.padding = "8px 12px";
                 item.style.background = "var(--staff-bg)";
@@ -627,49 +622,9 @@ function initSortable() {
         });
     }
 
-    // 2. 初始化班表格子 (可以互相移動的地方)
+    // 初始化所有班表格子
     document.querySelectorAll('.drop-zone').forEach(el => {
-        if (el.dataset.active === "true") {
-            new Sortable(el, {
-                group: 'shared',
-                animation: 150,
-                delay: 50,
-                delayOnTouchOnly: true,
-                fallbackOnBody: true,
-                swapThreshold: 0.4,
-                // 關鍵設定：如果格子間互拉失敗，彈回原格子
-                revertOnSpill: true, 
-                dragClass: "sortable-drag",
-                ghostClass: "sortable-ghost",
-                onStart: () => document.body.classList.add('sortable-grabbing'),
-                onAdd: function (evt) {
-                    const targetZone = evt.to;
-                    const item = evt.item;
-                    const id = item.dataset.id;
-                    const date = targetZone.dataset.date;
-                    const shift = targetZone.dataset.shift;
-
-                    let name = item.querySelector('strong')?.innerText || item.innerText.replace('×', '').trim();
-
-                    if (validatePlacement(id, date, shift, name, targetZone, item)) {
-                        item.remove(); // 驗證失敗才移除
-                    } else {
-                        // 轉換為正式標籤樣式
-                        const staffColor = getStaffColor(id);
-                        item.className = 'staff-tag';
-                        item.style.cssText = `background-color: ${staffColor}; color: white; border: none;`;
-                        item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
-                    }
-                    updateCounts();
-                },
-                onEnd: () => {
-                    document.body.classList.remove('sortable-grabbing');
-                    updateCounts();
-                },
-                onUpdate: updateCounts,
-                onRemove: updateCounts
-            });
-        }
+        if (el.dataset.active === "true") initSortableOnElement(el);
     });
 }
 
