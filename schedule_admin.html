@@ -218,15 +218,33 @@
         visibility: visible !important;
     }
 
-    /* 拖曳中的實體 (Drag)：手指下的那個標籤 */
+ /* ==================================================
+       讓助理池的卡片，被拖起來時瞬間變成小標籤 (取代原本的 JS) 
+       ================================================== */
+    .staff-item.sortable-drag {
+        min-width: unset !important;
+        width: auto !important;
+        padding: 6px 12px !important;
+        background: var(--staff-bg) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 4px !important;
+    }
+    
+    .staff-item.sortable-drag strong {
+        font-weight: 500 !important;
+        font-size: 13px !important;
+    }
+
+    /* 確保拖曳中的標籤能穿透點擊，直接感應到底下的影子 */
     .sortable-drag {
-        pointer-events: none !important; /* 核心：穿透判定，讓手指壓力指到底下的格子 */
+        pointer-events: none !important; 
         opacity: 0.9 !important;
         transform: scale(1.1);
         z-index: 9999 !important;
     }
 
-    /* 拖曳時隱藏不需要的元素 (數字、統計、刪除鈕) */
+    /* 隱藏拖曳中不需要看到的雜物 */
     .sortable-drag .count-badge,
     .sortable-drag .count-row,
     .sortable-drag .leave-warn,
@@ -588,6 +606,8 @@ document.addEventListener('touchend', () => document.body.classList.remove('sort
 
 // --- 拖放邏輯核心優化版 ---
 
+// --- 拖放邏輯核心優化版 ---
+
 function initSortable() {
     // 銷毀舊的實例防止重複綁定
     if (window.staffPoolSortable) window.staffPoolSortable.destroy();
@@ -602,18 +622,10 @@ function initSortable() {
             delayOnTouchOnly: true,
             touchStartThreshold: 10,
             fallbackOnBody: true,
-            // 關鍵修正：處理「正在拖曳」的那個實體
-            onStart: function (evt) {
+            revertOnSpill: true, // 防呆：沒拉好就彈回助理池
+            onStart: function () {
+                // 拿掉所有干擾 DOM 的 JS，單純加上全域狀態
                 document.body.classList.add('sortable-grabbing');
-                const item = evt.item; // 手指抓著的這個標籤
-                const name = item.querySelector('strong')?.innerText || "";
-                
-                // 立即把拖曳中的標籤洗乾淨，只留名字
-                item.innerHTML = `<strong>${name}</strong>`;
-                item.style.padding = "8px 12px";
-                item.style.background = "var(--staff-bg)";
-                item.style.color = "white";
-                item.style.borderRadius = "4px";
             },
             onEnd: () => {
                 document.body.classList.remove('sortable-grabbing');
@@ -635,9 +647,16 @@ function initSortableOnElement(el) {
         delay: 50,
         delayOnTouchOnly: true,
         fallbackOnBody: true,
+        revertOnSpill: true, // 防呆：沒放進格子就彈回原位，絕對不消失
         swapThreshold: 0.4,
+        invertedSwapThreshold: 0.4,
         dragClass: "sortable-drag",
         ghostClass: "sortable-ghost",
+        onStart: () => document.body.classList.add('sortable-grabbing'),
+        onEnd: () => {
+            document.body.classList.remove('sortable-grabbing');
+            updateCounts();
+        },
         onAdd: function (evt) {
             const targetZone = evt.to;
             const item = evt.item;
@@ -645,8 +664,14 @@ function initSortableOnElement(el) {
             const date = targetZone.dataset.date;
             const shift = targetZone.dataset.shift;
 
-            // 抓取純名字
-            let name = item.querySelector('strong')?.innerText || item.innerText.replace('×', '').trim();
+            // 抓取純名字 (相容助理池與已在班表內的標籤)
+            let name = "";
+            const strongTag = item.querySelector('strong');
+            if (strongTag) {
+                name = strongTag.innerText.trim();
+            } else {
+                name = item.innerText.replace('×', '').trim();
+            }
 
             // 防呆驗證
             if (validatePlacement(id, date, shift, name, targetZone, item)) {
@@ -656,7 +681,7 @@ function initSortableOnElement(el) {
                 const staffColor = getStaffColor(id);
                 item.className = 'staff-tag';
                 item.style.cssText = `background-color: ${staffColor}; color: white; border: none;`;
-                item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
+                item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();" ontouchend="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
             }
             updateCounts();
         },
