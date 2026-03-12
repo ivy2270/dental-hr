@@ -251,6 +251,41 @@
     user-select: none;
     -webkit-user-select: none;
 }
+
+
+/* 1. 增加格子的感應範圍，讓手指更好放準 */
+.drop-zone {
+    min-height: 45px !important;
+    transition: background-color 0.2s;
+}
+
+/* 2. 拖起時的視覺效果：放大並加上陰影，防止被手指擋住看不見 */
+.sortable-drag {
+    opacity: 1 !important;
+    transform: scale(1.15); /* 拖起來時放大 15% */
+    box-shadow: 0 8px 20px rgba(0,0,0,0.3) !important;
+    background: var(--staff-bg) !important;
+    z-index: 9999 !important;
+}
+
+/* 3. 留在原地的影子：讓你知道原本在哪格 */
+.sortable-ghost {
+    opacity: 0.2 !important;
+    background: #000 !important;
+}
+
+/* 4. 正在拖曳時，讓所有格子亮起來（指引感） */
+body.sortable-grabbing .drop-zone {
+    background-color: rgba(0,123,255,0.08) !important;
+    border: 1px dashed var(--primary) !important;
+}
+
+/* 5. 禁止手機選取文字干擾拖放 */
+.staff-tag, .staff-item {
+    -webkit-user-select: none;
+    user-select: none;
+}
+
     }
 </style>
 </head>
@@ -541,43 +576,66 @@ delay: 200,      // 按住 200 毫秒後才觸發拖曳，讓手指快速滑過�
 
 // --- 拖放邏輯 (修正版) ---
 
+// A. 全域監聽器建議放在最外面，只執行一次
+document.addEventListener('dragstart', () => document.body.classList.add('sortable-grabbing'));
+document.addEventListener('dragend', () => document.body.classList.remove('sortable-grabbing'));
+document.addEventListener('touchstart', (e) => {
+    if(e.target.closest('.staff-item') || e.target.closest('.staff-tag')) {
+        document.body.classList.add('sortable-grabbing');
+    }
+}, {passive: true});
+document.addEventListener('touchend', () => document.body.classList.remove('sortable-grabbing'));
+
 function initSortable() {
-    // A. 先單獨初始化「助理池」 (解決無法滑動問題)
+    // 確保自動捲動
+    if (typeof Sortable.mount === 'function') {
+        try { Sortable.mount(new Sortable.AutoScroll()); } catch(e){}
+    }
+
+    // 1. 初始化助理池
     const staffPoolEl = document.getElementById('staffPool');
     if (staffPoolEl) {
         new Sortable(staffPoolEl, {
             group: {
                 name: 'shared',
-                pull: 'clone', // 從池子拉出去用複製的
-                put: false     // 不允許把東西丟回池子
+                pull: 'clone',
+                put: false
             },
-            sort: false,       // 池子內不排序
+            sort: false,
             animation: 150,
-            delay: 150,        // 手機按住 0.15s 才開始拖，這能讓輕觸滑動恢復
+            delay: 150,
             delayOnTouchOnly: true,
-            touchStartThreshold: 10, // 手指位移超過 10px 才算拖動，確保滑動順暢
-            fallbackOnBody: true
+            touchStartThreshold: 10,
+            fallbackOnBody: true,
+            // 這裡也手動觸發一次，確保萬無一失
+            onStart: () => document.body.classList.add('sortable-grabbing'),
+            onEnd: () => document.body.classList.remove('sortable-grabbing')
         });
     }
 
-    // B. 再初始化所有班表格子
+    // 2. 初始化班表格子
     document.querySelectorAll('.drop-zone').forEach(el => initSortableOnElement(el));
 }
 
 function initSortableOnElement(el) {
     if (!el || el.dataset.active !== "true") return;
     const s = new Sortable(el, {
-        group: 'shared', 
+group: 'shared', 
         animation: 150,     
         disabled: isReadOnly,
-        delay: 50,             // 格子間移動延遲短一點，操作才靈敏
+        delay: 60,             // 稍微縮短延遲，增加即時回饋感
         delayOnTouchOnly: true,
-		revertOnSpill: true,    // 如果丟到格子外面，會自動彈回原本的格子，不會消失        
-        scroll: true,
-        touchStartThreshold: 5,
-        fallbackOnBody: true,
-        swapThreshold: 0.5,
-		invertedSwapThreshold: 0.5,
+        
+        // --- 核心順暢度優化 ---
+        revertOnSpill: true,    // 沒放準時強制彈回，防止消失
+        fallbackOnBody: true,   // 拖動時標籤脫離容器，不會被格子邊緣「吃掉」
+        fallbackTolerance: 3,   // 允許手指輕微抖動不中斷拖曳
+        
+        // --- 排序靈敏度 (這是桌機感的關鍵) ---
+        swapThreshold: 0.4,     // 只要重疊 40% 就進行交換判定
+        invertedSwapThreshold: 0.4,
+        dragClass: "sortable-drag",   // 正在拖動中的 class
+        ghostClass: "sortable-ghost", // 留在原地的影子 class
         
         onAdd: (evt) => {
             const id = evt.item.dataset.id;
