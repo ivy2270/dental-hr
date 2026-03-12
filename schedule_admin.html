@@ -189,6 +189,7 @@
 		margin: 0 !important;
 		
     }
+
 		.count-badge {
             font-size: 9px;
             padding: 1px 3px;
@@ -244,6 +245,13 @@
         .day-column.active .day-header::after { content: '▲'; }
         
         .dr-name-label { width: 55px; font-size: 12px; }
+		
+		.staff-tag, .staff-item {
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+    user-select: none;
+    touch-action: none !important; /* 強制禁用瀏覽器原生拖曳，交給 JS 處理 */
+}
     }
 </style>
 </head>
@@ -534,60 +542,85 @@ delay: 200,      // 按住 200 毫秒後才觸發拖曳，讓手指快速滑過�
 
     function initSortable() { document.querySelectorAll('.drop-zone').forEach(el => initSortableOnElement(el)); }
     
-    function initSortableOnElement(el) {
-        if (!el || el.dataset.active !== "true") return;
-        const s = new Sortable(el, {
-            group: 'shared', 
-            animation: 150, 	
-            disabled: isReadOnly,
-			delay: 200,
+function initSortableOnElement(el) {
+    if (!el || el.dataset.active !== "true") return;
+    const s = new Sortable(el, {
+        group: 'shared', 
+        animation: 150,     
+        disabled: isReadOnly,
+        // --- 行動端優化參數 ---
+        delay: 150,            // 按住 0.15 秒才開啟拖拽，防止滑動網頁時誤觸
         delayOnTouchOnly: true,
-            onAdd: (evt) => {
-                const id = evt.item.dataset.id;
-                const date = el.dataset.date;
-                const shift = el.dataset.shift;
-                const name = evt.item.querySelector('strong')?.innerText || evt.item.innerText.replace('×', '').trim();
+        touchStartThreshold: 5, // 手指移動超過 5px 才真正開始拖，增加穩定度
+        fallbackOnBody: true,   // 讓拖拽中的元素附著在 body 上，防止手機版容器 overflow 剪裁
+        swapThreshold: 0.65,    // 讓格子間交換更靈敏
+        
+        // 1. 當元素從助理池拖入，或從 A 格子拖到 B 格子
+        onAdd: (evt) => {
+            const id = evt.item.dataset.id;
+            const date = el.dataset.date;
+            const shift = el.dataset.shift;
+            
+            // 取得純名字 (排除 × 符號)
+            const name = evt.item.innerText.split('×')[0].trim();
 
-                // 1. 重複排班偵測
-                const allZonesInShift = document.querySelectorAll(`.drop-zone[data-date="${date}"][data-shift="${shift}"]`);
-                let existsElsewhere = false;
-                allZonesInShift.forEach(zone => {
-                    if (zone !== el && zone.querySelector(`[data-id="${id}"]`)) existsElsewhere = true;
-                    if (zone === el && zone.querySelectorAll(`[data-id="${id}"]`).length > 1) existsElsewhere = true;
-                });
-
-                if (existsElsewhere) {
-                    alert(`警告：${name} 在 ${date} ${shift}診 已經排過班了！`);
-                    evt.item.remove();
-                    updateCounts();
-                    return;
-                }
-
-                // 2. 請假偵測
-                const leaveInfo = checkStaffLeave(id, date, shift); 
-                if (leaveInfo) {
-                    alert(`防呆：${name} 在 ${date} 有請假設定 (${leaveInfo})！`);
-                    evt.item.remove();
-                    updateCounts();
-                    return;
-                }
-
-                // 3. 樣式轉換：拖入時設定背景顏色
+            // 執行防呆檢查 (重複排班、請假)
+            const isInvalid = validatePlacement(id, date, shift, name, el, evt.item);
+            
+            if (isInvalid) {
+                evt.item.remove();
+            } else {
+                // 如果是從助理池(staff-item)來的，轉換成標籤樣式
                 if (evt.item.classList.contains('staff-item')) {
                     const staffColor = getStaffColor(id);
                     evt.item.className = 'staff-tag';
-                    evt.item.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
-                    evt.item.innerHTML = `${name} <span class="remove" 
-    onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();" 
-    ontouchend="event.stopPropagation(); this.parentElement.remove(); updateCounts();"
-    style="padding: 2px 8px;">×</span>`;
+                    evt.item.style.cssText = `background-color: ${staffColor}; color: white; border: none;`;
+                    evt.item.innerHTML = `${name} <span class="remove" onclick="this.parentElement.remove(); updateCounts();" style="padding: 2px 8px;">×</span>`;
                 }
-                updateCounts();
-            },
-            onEnd: updateCounts
-        });
-        sortables.push(s);
+            }
+            updateCounts();
+        },
+
+        // 2. 關鍵修正：格子內或格子間移動後的處理
+        onEnd: (evt) => {
+            // 確保拖拽結束後強制重新計算，並觸發存檔 (如果有存檔功能的話)
+            updateCounts();
+        },
+        
+        // 如果您希望在格子內調換順序也能觸發檢查，可加 onUpdate
+        onUpdate: (evt) => {
+            updateCounts();
+        }
+    });
+    sortables.push(s);
+}
+
+// 抽取出來的共用檢查邏輯
+function validatePlacement(id, date, shift, name, targetEl, item) {
+    // 1. 重複排班偵測
+    const allZonesInShift = document.querySelectorAll(`.drop-zone[data-date="${date}"][data-shift="${shift}"]`);
+    let existsElsewhere = false;
+    allZonesInShift.forEach(zone => {
+        // 檢查該診次其他格子是否已有此人
+        if (zone !== targetEl && zone.querySelector(`[data-id="${id}"]`)) existsElsewhere = true;
+        // 檢查同一個格子內是否有重複 (通常發生在快速拖放時)
+        if (zone === targetEl && zone.querySelectorAll(`[data-id="${id}"]`).length > 1) existsElsewhere = true;
+    });
+
+    if (existsElsewhere) {
+        alert(`警告：${name} 在 ${date} ${shift}診 已經排過班了！`);
+        return true;
     }
+
+    // 2. 請假偵測
+    const leaveInfo = checkStaffLeave(id, date, shift); 
+    if (leaveInfo) {
+        alert(`防呆：${name} 在 ${date} 有請假設定 (${leaveInfo})！`);
+        return true;
+    }
+    
+    return false;
+}
 
     // --- 資料填充與存檔 ---
 
@@ -945,4 +978,3 @@ async function generateA4ScheduleImage(mode = 'color') {
 </script>
 </body>
 </html>
-
