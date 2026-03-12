@@ -652,61 +652,61 @@ function initSortable() {
 
 function initSortableOnElement(el) {
     if (!el) return;
-    
+
+    // --- 關鍵修正：如果這個格子已經有實例，先手動銷毀它 ---
+    if (el.sortableInstance) {
+        el.sortableInstance.destroy();
+    }
+
     const s = new Sortable(el, {
         group: 'shared',
         animation: 150,
-        delay: 50,
+        delay: 80,             // 手機版稍微增加延遲，防止誤觸捲動
         delayOnTouchOnly: true,
-        fallbackOnBody: true,
-        swapThreshold: 0.3,       // 降低門檻，不用對太準也能進去
-        emptyInsertThreshold: 30, // 增加空格子的感應區域
-        invertedSwapThreshold: 0.3,
-        revertOnSpill: true,
-        dragClass: "sortable-drag",
-        ghostClass: "sortable-ghost",
-        onStart: () => document.body.classList.add('sortable-grabbing'),
-        onEnd: () => {
+        fallbackOnBody: true,  // 標籤拖拽時浮在最上層
+        swapThreshold: 0.5,
+        invertSwap: true,      // 增加交換標籤的穩定性
+        
+        onStart: function() {
+            document.body.classList.add('sortable-grabbing');
+        },
+        onEnd: function() {
             document.body.classList.remove('sortable-grabbing');
             updateCounts();
         },
-        onAdd: function (evt) {
-            handleOnAdd(evt); // 將複雜邏輯抽出來，避免閉包混亂
-        },
-        onUpdate: updateCounts,
-        onRemove: updateCounts
+        onAdd: handleOnAdd
     });
-    activeSortables.push(s);
+
+    // 將實例存存在 DOM 屬性中，方便下次檢查
+    el.sortableInstance = s; 
 }
 
 function handleOnAdd(evt) {
     const item = evt.item;
-    const targetZone = evt.to;
-    const id = item.dataset.id;
-    const date = targetZone.dataset.date;
-    const shift = targetZone.dataset.shift;
     const isFromPool = (evt.pullMode === 'clone');
+    const targetZone = evt.to;
+    const fromZone = evt.from;
+    const id = item.dataset.id;
+    const name = item.querySelector('strong') ? item.querySelector('strong').innerText : item.innerText.replace('×', '').trim();
 
-    let name = "";
-    const strongTag = item.querySelector('strong');
-    name = strongTag ? strongTag.innerText.trim() : item.innerText.replace('×', '').trim();
-
-    // 關鍵修正：傳入 item 本身，讓驗證邏輯知道「排除正在動的這個標籤」
-    if (validatePlacement(id, date, shift, name, targetZone, item)) {
+    // 驗證
+    if (validatePlacement(id, targetZone.dataset.date, targetZone.dataset.shift, name, targetZone, item)) {
         if (isFromPool) {
-            item.remove(); 
+            item.remove();
         } else {
-            evt.from.appendChild(item); // 驗證失敗，退回原位
+            // 修正：使用 insertBefore 配合 oldIndex，精準退回原位
+            const referenceNode = fromZone.children[evt.oldIndex];
+            fromZone.insertBefore(item, referenceNode);
         }
-        updateCounts();
         return;
     }
 
+    // 如果是從助理池新加入的，才需要重新格式化 HTML
     if (isFromPool) {
         const staffColor = getStaffColor(id);
         item.className = 'staff-tag';
-        item.style.cssText = `background-color: ${staffColor}; color: white; border: none;`;
-        item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
+        item.style.cssText = `background-color: ${staffColor}; color: white;`;
+        item.innerHTML = `${name} <span class="remove" onclick="this.parentElement.remove(); updateCounts();">×</span>`;
     }
     updateCounts();
 }
