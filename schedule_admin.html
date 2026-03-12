@@ -572,9 +572,12 @@ function initSortableOnElement(el) {
         disabled: isReadOnly,
         delay: 50,             // 格子間移動延遲短一點，操作才靈敏
         delayOnTouchOnly: true,
+		revertOnSpill: true,    // 如果丟到格子外面，會自動彈回原本的格子，不會消失        
+        scroll: true,
         touchStartThreshold: 5,
         fallbackOnBody: true,
-        swapThreshold: 0.65,
+        swapThreshold: 0.5,
+		invertedSwapThreshold: 0.5,
         
         onAdd: (evt) => {
             const id = evt.item.dataset.id;
