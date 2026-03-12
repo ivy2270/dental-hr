@@ -211,12 +211,15 @@
     /* 3. 拖放體驗優化 (關鍵！) */
 
     /* 影子 (Ghost)：標籤預計落下的位置 */
-    .sortable-ghost {
-        background-color: #ffc107 !important; /* 顯眼的黃色引導 */
-        opacity: 0.5 !important;
-        border: 2px dashed #333 !important;
-        visibility: visible !important;
-    }
+/* 留在原來格子裡、預計落下的虛線框 */
+.sortable-ghost {
+    background-color: rgba(0, 123, 255, 0.15) !important; /* 使用淡藍色暗示可放入 */
+    border: 2px dashed var(--primary) !important;
+    opacity: 1 !important;
+    visibility: visible !important;
+    /* 確保影子在格子裡有固定高度，避免格子縮起來 */
+    min-height: 40px; 
+}
 
  /* ==================================================
        讓助理池的卡片，被拖起來時瞬間變成小標籤 (取代原本的 JS) 
@@ -237,12 +240,16 @@
     }
 
     /* 確保拖曳中的標籤能穿透點擊，直接感應到底下的影子 */
-    .sortable-drag {
-        pointer-events: none !important; 
-        opacity: 0.9 !important;
-        transform: scale(1.1);
-        z-index: 9999 !important;
-    }
+/* 正在被手指抓著移動的那個元素 */
+.sortable-drag {
+    pointer-events: none !important; 
+    opacity: 0.9 !important;
+    /* 關鍵：向上位移並放大，讓標籤出現在手指上方，不會被遮住 */
+    transform: scale(1.1) translateY(-30px) !important; 
+    z-index: 9999 !important;
+    box-shadow: 0 15px 30px rgba(0,0,0,0.3) !important;
+    transition: none !important; /* 拖曳時不要有延遲動畫 */
+}
 
     /* 隱藏拖曳中不需要看到的雜物 */
     .sortable-drag .count-badge,
@@ -610,118 +617,121 @@ document.addEventListener('touchend', () => document.body.classList.remove('sort
 
 // --- 拖放邏輯核心優化版 ---
 
+// 在全域宣告一個變數來存儲所有實例
+let activeSortables = []; 
+
 function initSortable() {
-    // 銷毀舊的實例防止重複綁定
-    if (window.staffPoolSortable) window.staffPoolSortable.destroy();
-    
+    // 1. 銷毀舊的所有實例，清空記憶體
+    activeSortables.forEach(s => s.destroy());
+    activeSortables = [];
+
+    // 2. 初始化助理池 (Pool)
     const staffPoolEl = document.getElementById('staffPool');
     if (staffPoolEl) {
-        window.staffPoolSortable = new Sortable(staffPoolEl, {
+        const poolS = new Sortable(staffPoolEl, {
             group: { name: 'shared', pull: 'clone', put: false },
             sort: false,
             animation: 150,
-            delay: 120,
+            delay: 100, // 手機版建議 100ms 防止誤觸
             delayOnTouchOnly: true,
-            touchStartThreshold: 10,
+            touchStartThreshold: 5,
             fallbackOnBody: true,
-            revertOnSpill: true, // 防呆：沒拉好就彈回助理池
-            onStart: function () {
-                // 拿掉所有干擾 DOM 的 JS，單純加上全域狀態
-                document.body.classList.add('sortable-grabbing');
-            },
-            onEnd: () => {
-                document.body.classList.remove('sortable-grabbing');
-                updateCounts();
-            }
+            onStart: () => document.body.classList.add('sortable-grabbing'),
+            onEnd: () => document.body.classList.remove('sortable-grabbing')
         });
+        activeSortables.push(poolS);
     }
 
-    // 初始化所有班表格子
+    // 3. 初始化所有班表格子
     document.querySelectorAll('.drop-zone').forEach(el => {
-        if (el.dataset.active === "true") initSortableOnElement(el);
+        if (el.dataset.active === "true") {
+            initSortableOnElement(el);
+        }
     });
 }
 
 function initSortableOnElement(el) {
-    if (!el || el.dataset.active !== "true") return;
+    if (!el) return;
     
-    new Sortable(el, {
+    const s = new Sortable(el, {
         group: 'shared',
         animation: 150,
         delay: 50,
         delayOnTouchOnly: true,
         fallbackOnBody: true,
-        swapThreshold: 0.5,
-        emptyInsertThreshold: 50,
+        swapThreshold: 0.3,       // 降低門檻，不用對太準也能進去
+        emptyInsertThreshold: 30, // 增加空格子的感應區域
+        invertedSwapThreshold: 0.3,
         revertOnSpill: true,
         dragClass: "sortable-drag",
         ghostClass: "sortable-ghost",
         onStart: () => document.body.classList.add('sortable-grabbing'),
         onEnd: () => {
             document.body.classList.remove('sortable-grabbing');
-            updateCounts(); // 只要放手就重新計算
+            updateCounts();
         },
         onAdd: function (evt) {
-            const item = evt.item;
-            const targetZone = evt.to;
-            const id = item.dataset.id;
-            const date = targetZone.dataset.date;
-            const shift = targetZone.dataset.shift;
-
-            // 判斷來源：如果 pullMode 是 'clone'，表示這是從「助理池」拉過來的新標籤
-            const isFromPool = (evt.pullMode === 'clone');
-
-            // 抓取純名字
-            let name = "";
-            const strongTag = item.querySelector('strong');
-            if (strongTag) {
-                name = strongTag.innerText.trim();
-            } else {
-                name = item.innerText.replace('×', '').trim();
-            }
-
-            // 執行防呆驗證
-            if (validatePlacement(id, date, shift, name, targetZone, item)) {
-                if (isFromPool) {
-                    item.remove(); // 池子拉出來的直接刪掉
-                } else {
-                    evt.from.appendChild(item); // 已經在班表上的，退回原本的格子
-                }
-                return;
-            }
-
-            // --- 核心邏輯修正 ---
-            if (isFromPool) {
-                // A. 如果是從「助理池」拉過來的，才需要把它「變身」成正式標籤樣式
-                const staffColor = getStaffColor(id);
-                item.className = 'staff-tag';
-                item.style.cssText = `background-color: ${staffColor}; color: white; border: none;`;
-                item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
-            } else {
-                // B. 如果本來就在格子間移動，SortableJS 已經把 DOM 移過去了
-                // 我們什麼都不用做！看到影子放手，它就會停在影子的位置。
-                console.log("格子間移動成功:", name);
-            }
-
-            updateCounts();
+            handleOnAdd(evt); // 將複雜邏輯抽出來，避免閉包混亂
         },
         onUpdate: updateCounts,
         onRemove: updateCounts
     });
+    activeSortables.push(s);
+}
+
+function handleOnAdd(evt) {
+    const item = evt.item;
+    const targetZone = evt.to;
+    const id = item.dataset.id;
+    const date = targetZone.dataset.date;
+    const shift = targetZone.dataset.shift;
+    const isFromPool = (evt.pullMode === 'clone');
+
+    let name = "";
+    const strongTag = item.querySelector('strong');
+    name = strongTag ? strongTag.innerText.trim() : item.innerText.replace('×', '').trim();
+
+    // 關鍵修正：傳入 item 本身，讓驗證邏輯知道「排除正在動的這個標籤」
+    if (validatePlacement(id, date, shift, name, targetZone, item)) {
+        if (isFromPool) {
+            item.remove(); 
+        } else {
+            evt.from.appendChild(item); // 驗證失敗，退回原位
+        }
+        updateCounts();
+        return;
+    }
+
+    if (isFromPool) {
+        const staffColor = getStaffColor(id);
+        item.className = 'staff-tag';
+        item.style.cssText = `background-color: ${staffColor}; color: white; border: none;`;
+        item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
+    }
+    updateCounts();
 }
 
 // 檢查邏輯保持您的原版不變
-function validatePlacement(id, date, shift, name, targetEl, item) {
+function validatePlacement(id, date, shift, name, targetEl, currentItem) {
     const allZonesInShift = document.querySelectorAll(`.drop-zone[data-date="${date}"][data-shift="${shift}"]`);
     let existsElsewhere = false;
+
     allZonesInShift.forEach(zone => {
-        if (zone !== targetEl && zone.querySelector(`[data-id="${id}"]`)) existsElsewhere = true;
-        if (zone === targetEl && zone.querySelectorAll(`[data-id="${id}"]`).length > 1) existsElsewhere = true;
+        // 找到該格子內的所有標籤
+        const tags = zone.querySelectorAll('.staff-tag');
+        tags.forEach(tag => {
+            // 關鍵：如果這張標籤跟我是同一個人，且「不是我本人（DOM 不同）」，才算重複
+            if (tag.dataset.id === id && tag !== currentItem) {
+                existsElsewhere = true;
+            }
+        });
     });
+
     if (existsElsewhere) {
         alert(`警告：${name} 在 ${date} ${shift}診 已經排過班了！`);
         return true;
     }
+    
     const leaveInfo = checkStaffLeave(id, date, shift); 
     if (leaveInfo) {
         alert(`防呆：${name} 在 ${date} 有請假設定 (${leaveInfo})！`);
