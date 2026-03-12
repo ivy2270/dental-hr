@@ -242,13 +242,12 @@
     /* 確保拖曳中的標籤能穿透點擊，直接感應到底下的影子 */
 /* 正在被手指抓著移動的那個元素 */
 .sortable-drag {
-    pointer-events: none !important; 
     opacity: 0.9 !important;
-    /* 關鍵：向上位移並放大，讓標籤出現在手指上方，不會被遮住 */
-    transform: scale(1.1) translateY(-30px) !important; 
     z-index: 9999 !important;
-    box-shadow: 0 15px 30px rgba(0,0,0,0.3) !important;
-    transition: none !important; /* 拖曳時不要有延遲動畫 */
+    pointer-events: none !important;
+    /* 不要加 transform: translateY(-30px)，這在某些手機瀏覽器會導致座標偏移 */
+    transform: scale(1.05) !important; 
+    cursor: grabbing;
 }
 
     /* 隱藏拖曳中不需要看到的雜物 */
@@ -267,6 +266,7 @@
         /* 核心修正：預先塞入透明邊框，避免拖曳瞬間長出虛線導致整體版面位移，造成判定失準 */
         border: 1px solid transparent !important;
         box-sizing: border-box !important;
+		overflow: visible !important; /* 絕對不能是 hidden，否則標籤移出邊界會消失 */
     }
 
     /* 正在拖曳時，所有格子亮起指引 */
@@ -292,10 +292,13 @@
 
     .dr-name-label { width: 55px; font-size: 12px; }
     
-    .staff-tag {
-        user-select: none;
-        -webkit-user-select: none;
-    }
+/* 1. 嚴格禁止標籤的所有原生觸控行為，全部交給 Sortable 處理 */
+.staff-tag, .staff-item {
+    touch-action: none !important; 
+    user-select: none !important;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
 
     /* 5. 底部按鈕區修正 */
     #datePickerContainer { margin: 5px 0; padding: 5px ; display: block; }
@@ -651,63 +654,66 @@ function initSortable() {
 }
 
 function initSortableOnElement(el) {
-    if (!el) return;
+    if (!el || el.sortableInstance) return; // 防止重複初始化
 
-    // --- 關鍵修正：如果這個格子已經有實例，先手動銷毀它 ---
-    if (el.sortableInstance) {
-        el.sortableInstance.destroy();
-    }
-
-    const s = new Sortable(el, {
+    el.sortableInstance = new Sortable(el, {
         group: 'shared',
         animation: 150,
-        delay: 80,             // 手機版稍微增加延遲，防止誤觸捲動
-        delayOnTouchOnly: true,
-        fallbackOnBody: true,  // 標籤拖拽時浮在最上層
-        swapThreshold: 0.5,
-        invertSwap: true,      // 增加交換標籤的穩定性
         
-        onStart: function() {
+        // --- 手機版穩定性核心設定 ---
+        forceFallback: true,      // 關鍵：強迫使用 HTML 模擬拖曳，不使用瀏覽器原生 API
+        fallbackClass: "sortable-drag", 
+        fallbackOnBody: true,     // 讓拖曳中的標籤掛在 body，避免被格子的 overflow 裁切
+        fallbackTolerance: 5,     // 手指移動超過 5px 才觸發，防止誤觸
+        
+        delay: 100,               // 長按 0.1 秒才開始拖動，這對手機操作極其重要
+        delayOnTouchOnly: true,   // 只在手機上啟用延遲
+        
+        onStart: function(evt) {
             document.body.classList.add('sortable-grabbing');
+            // 手機震動回饋（可選，增加手感）
+            if (navigator.vibrate) navigator.vibrate(20);
         },
-        onEnd: function() {
+        onEnd: function(evt) {
             document.body.classList.remove('sortable-grabbing');
             updateCounts();
         },
         onAdd: handleOnAdd
     });
-
-    // 將實例存存在 DOM 屬性中，方便下次檢查
-    el.sortableInstance = s; 
 }
 
 function handleOnAdd(evt) {
     const item = evt.item;
+    const fromZone = evt.from;   // 來源格子
+    const targetZone = evt.to;   // 目標格子
     const isFromPool = (evt.pullMode === 'clone');
-    const targetZone = evt.to;
-    const fromZone = evt.from;
+    
+    // 取得人員資訊
     const id = item.dataset.id;
-    const name = item.querySelector('strong') ? item.querySelector('strong').innerText : item.innerText.replace('×', '').trim();
+    const strongTag = item.querySelector('strong');
+    const name = strongTag ? strongTag.innerText.trim() : item.innerText.replace('×', '').trim();
 
-    // 驗證
+    // 驗證邏輯
     if (validatePlacement(id, targetZone.dataset.date, targetZone.dataset.shift, name, targetZone, item)) {
+        // 如果驗證失敗
         if (isFromPool) {
-            item.remove();
+            item.remove(); // 從助理池拉過來的，直接銷毀
         } else {
-            // 修正：使用 insertBefore 配合 oldIndex，精準退回原位
+            // 關鍵修正：從格子移動格子的，精準退回原位
             const referenceNode = fromZone.children[evt.oldIndex];
             fromZone.insertBefore(item, referenceNode);
         }
         return;
     }
 
-    // 如果是從助理池新加入的，才需要重新格式化 HTML
+    // 如果驗證成功，且是從助理池來的新標籤，才重新格式化
     if (isFromPool) {
         const staffColor = getStaffColor(id);
         item.className = 'staff-tag';
         item.style.cssText = `background-color: ${staffColor}; color: white;`;
-        item.innerHTML = `${name} <span class="remove" onclick="this.parentElement.remove(); updateCounts();">×</span>`;
+        item.innerHTML = `${name} <span class="remove" onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>`;
     }
+    
     updateCounts();
 }
 
