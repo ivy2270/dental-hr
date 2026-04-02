@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>個人/全院班表查詢</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <style>
+        :root { 
+            --primary: #007bff; --success: #28a745; --error: #dc3545; --border: #dee2e6; 
+            --morning: #007bff; --afternoon: #28a745; --evening: #fd7e14;
+            --bg: #f0f2f5;
+        }
+        * { box-sizing: border-box; font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; }
+        body { background: var(--bg); margin: 0; padding: 0; }
+        .header { background: white; padding: 12px; position: sticky; top: 0; z-index: 1000; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        .tab-container { display: flex; gap: 8px; background: #f8f9fa; padding: 5px; border-radius: 12px; margin-bottom: 12px; }
+        .tab-btn { flex: 1; padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-weight: bold; color: #666; background: none; font-size: 0.95em; }
+        .tab-btn.active { background: var(--primary); color: white; }
+        
+        .control-bar { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+        .nav-btn { background: #fff; border: 1px solid var(--border); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+        #dateDisplay { font-weight: bold; font-size: 0.9em; flex-grow: 1; text-align: center; }
+        
+        /* 日期選擇器樣式 */
+        #weekPicker { border: 1px solid var(--border); padding: 5px; border-radius: 6px; font-size: 0.9em; }
+
+        /* --- 個人月曆 --- */
+        .calendar-wrapper { width: 100%; overflow-x: auto; padding: 5px; }
+        .calendar-grid { 
+            display: grid; 
+            grid-template-columns: repeat(7, 1fr); 
+            min-width: 320px; 
+            background: #eee; gap: 1px; border: 1px solid var(--border); border-radius: 8px; 
+        }
+        .calendar-day-head { background: #f8f9fa; padding: 8px 0; text-align: center; font-size: 0.75em; font-weight: bold; }
+        .calendar-day { background: white; min-height: 80px; padding: 2px; }
+        .day-num { font-size: 0.8em; font-weight: bold; margin-bottom: 2px; }
+        
+        .shift-tag { font-size: 9px; padding: 1px 2px; border-radius: 3px; color: white; margin-bottom: 2px; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .tag-m { background: var(--morning); }
+        .tag-a { background: var(--afternoon); }
+        .tag-e { background: var(--evening); }
+        .tag-leave { background: white; border: 1px solid var(--error); color: var(--error); font-weight: bold; }
+
+        /* --- 全院週表 --- */
+        .day-card { background: white; margin: 10px; border-radius: 10px; border: 1px solid var(--border); overflow: hidden; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .day-header { padding: 12px; background: #fff; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; font-weight: bold; cursor: pointer; }
+        .day-header.is-holiday { border-left: 5px solid var(--error); }
+        .day-content { padding: 0; display: none; }
+        .shift-box { padding: 10px; border-bottom: 1px dotted #eee; }
+        .shift-title { font-size: 0.85em; font-weight: bold; margin-bottom: 8px; display: flex; align-items: center; color: #555; }
+        .shift-title::before { content: ""; width: 8px; height: 8px; border-radius: 2px; margin-right: 6px; }
+        .title-m::before { background: var(--morning); }
+        .title-a::before { background: var(--afternoon); }
+        .title-e::before { background: var(--evening); }
+        
+        .staff-list { display: flex; flex-wrap: wrap; gap: 6px; }
+        .staff-tag { background: #f8f9fa; border: 1px solid #ddd; padding: 4px 8px; border-radius: 6px; font-size: 0.85em; display: flex; align-items: center; }
+        .pos-sub { font-size: 0.75em; color: #ffffff; margin-right: 5px; background: #495057; padding: 1px 4px; border-radius: 3px; }
+        
+        .dr-leave { background: #fff5f5; color: var(--error); padding: 8px; border-radius: 6px; font-size: 0.8em; margin-bottom: 8px; border: 1px dashed var(--error); font-weight: bold; }
+        .footer-leave { background: #fafafa; padding: 10px; font-size: 0.75em; color: #777; border-top: 1px solid #eee; }
+        
+        .hidden { display: none; }
+        #loading { position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 2000; display: flex; justify-content: center; align-items: center; font-weight: bold; color: var(--primary); }
+    </style>
+</head>
+<body>
+
+<div id="loading">讀取班表中...</div>
+
+<div class="header">
+<div style="display: flex; align-items: center; margin-bottom: 10px; gap: 10px;">
+        <button onclick="goBackMenu()" style="border: 1px solid var(--border); background: white; border-radius: 8px; padding: 6px 12px; cursor: pointer; font-size: 14px; display: flex; align-items: center;">
+            🏠 返回主選單
+        </button>
+        <span style="font-size: 14px; font-weight: bold; color: #333;">班表查詢系統</span>
+    </div>
+    <div class="tab-container">
+        <button id="btnP" class="tab-btn active" onclick="switchTab('personal')">🙋 個人月曆</button>
+        <button id="btnC" class="tab-btn" onclick="switchTab('clinic')">🏥 全院週表</button>
+    </div>
+    
+    <div class="control-bar" id="pCtrl">
+        <button class="nav-btn" onclick="moveMonth(-1)">◀</button>
+        <div id="dateDisplay"></div>
+        <button class="nav-btn" onclick="moveMonth(1)">▶</button>
+    </div>
+
+    <div class="control-bar hidden" id="cCtrl">
+        <span style="font-size:0.8em; color:#666;">選擇週一:</span>
+        <input type="date" id="weekPicker" onchange="handleWeekChange()">
+    </div>
+</div>
+
+<div id="pSec">
+    <div class="calendar-wrapper"><div class="calendar-grid" id="calGrid"></div></div>
+</div>
+
+<div id="cSec" class="hidden">
+    <div id="weekList"></div>
+</div>
+
+<script>
+    const GAS_URL = "https://script.google.com/macros/s/AKfycbxIzIUEMUkN2iWjKnYbdq-6znGrxFF7gajztQnSrsWto9BeeT-c98yooTk75OPMP7Qitw/exec"; 
+    let params = new URLSearchParams(window.location.search);
+    let user = { empId: params.get('empId') };
+    let curDate = new Date(); // 個人月曆用
+    let curMonStr = "";       // 全院週表用 (YYYY-MM-DD)
+
+    window.onload = () => { 
+        if(!user.empId) return alert("請重登");
+        // 初始化週一日期
+        const today = new Date();
+        const diff = today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1);
+        const monday = new Date(today.setDate(diff));
+        curMonStr = monday.toISOString().split('T')[0];
+        document.getElementById('weekPicker').value = curMonStr;
+        
+        fetchData(); 
+    };
+	
+	function goBackMenu() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const empId = urlParams.get('empId');
+    const name = urlParams.get('name');
+    const role = urlParams.get('role');
+    
+    // 假設您的主選單檔案名為 menu.html
+    window.location.href = `index.html?empId=${empId}&name=${encodeURIComponent(name)}&role=${encodeURIComponent(role)}`;
+}
+	
+	function toIsoDate(dateStr) {
+    if (!dateStr) return "";
+    // 處理 Date 物件或字串，統一轉為 YYYY-MM-DD
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) {
+        // 如果是字串 2026/4/3 這種，手動補0
+        const parts = dateStr.replace(/\//g, '-').split('-');
+        return `${parts[0]}-${parts[1].padStart(2,'0')}-${parts[2].padStart(2,'0')}`;
+    }
+    return d.toISOString().split('T')[0];
+}
+
+    function switchTab(t) {
+        $('.tab-btn').removeClass('active');
+        t === 'personal' ? $('#btnP').addClass('active') : $('#btnC').addClass('active');
+        $('#pSec').toggleClass('hidden', t!=='personal');
+        $('#cSec').toggleClass('hidden', t!=='clinic');
+        $('#pCtrl').toggleClass('hidden', t!=='personal');
+        $('#cCtrl').toggleClass('hidden', t!=='clinic');
+    }
+
+    function moveMonth(s) {
+        curDate.setMonth(curDate.getMonth() + s);
+        fetchData();
+    }
+
+    function handleWeekChange() {
+        // 確保選擇的是週一 (防呆)
+        let d = new Date(document.getElementById('weekPicker').value);
+        let day = d.getDay();
+        if(day !== 1) {
+            let diff = d.getDate() - day + (day === 0 ? -6 : 1);
+            d.setDate(diff);
+            document.getElementById('weekPicker').value = d.toISOString().split('T')[0];
+        }
+        curMonStr = document.getElementById('weekPicker').value;
+        fetchData();
+    }
+
+    async function fetchData() {
+        $('#loading').show();
+        const m = `${curDate.getFullYear()}-${String(curDate.getMonth()+1).padStart(2,'0')}`;
+        try {
+            const r = await fetch(GAS_URL, { 
+                method: "POST", 
+                body: JSON.stringify({ 
+                    action: "getStaffScheduleData", 
+                    empId: user.empId, 
+                    month: m, 
+                    monday: curMonStr 
+                }) 
+            });
+            const res = await r.json();
+            if(res.status === "success") {
+                $('#dateDisplay').text(`${curDate.getFullYear()}年 ${curDate.getMonth()+1}月`);
+                renderCal(res);
+                renderClinic(res);
+            }
+        } catch(e) { console.error(e); } finally { $('#loading').hide(); }
+    }
+
+function renderCal(data) {
+    const g = $('#calGrid').empty();
+    ['一','二','三','四','五','六','日'].forEach(d => g.append(`<div class="calendar-day-head">${d}</div>`));
+    let y = curDate.getFullYear(), m = curDate.getMonth();
+    let start = new Date(y, m, 1).getDay(); if(start === 0) start = 7;
+    for(let i=1; i<start; i++) g.append(`<div class="calendar-day" style="background:#f9f9f9"></div>`);
+    
+    let days = new Date(y, m+1, 0).getDate();
+    for(let d=1; d<=days; d++) {
+        const ds = `${y}-${String(m+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+        const hol = data.holidays.find(h => toIsoDate(h.date) === ds);
+        let h = `<div class="calendar-day"><div class="day-num" style="${hol?'color:red':''}">${d}</div>`;
+        
+        // --- 修改這裡：顯示 診次 + 假別 ---
+        data.staffLeaves.filter(l => l.date === ds).forEach(l => {
+            // l.shift[0] 取第一個字(早/午/晚)，l.type 是假別(病/事/特)
+            h += `<span class="shift-tag tag-leave">休:${l.shift[0]}|${l.type}</span>`;
+        });
+        
+        data.personal.filter(p => p.date === ds).forEach(p => {
+            let c = p.shift.includes('早')?'tag-m':(p.shift.includes('午')?'tag-a':'tag-e');
+            h += `<span class="shift-tag ${c}">${p.shift[0]}:${p.label}</span>`;
+        });
+        g.append(h + `</div>`);
+    }
+}
+
+    function renderClinic(data) {
+        const list = $('#weekList').empty();
+        const names = ['日','一','二','三','四','五','六'];
+        
+        // 直接使用 GAS 回傳的當週日期列表 (weekDates)
+        data.weekDates.forEach((ds, idx) => {
+            const d = new Date(ds);
+            const hol = data.holidays.find(h => toIsoDate(h.date) === ds);
+            
+            let h = `<div class="day-card">
+                <div class="day-header ${hol?'is-holiday':''}" onclick="$(this).next().slideToggle(150)">
+                    <div>${d.getMonth()+1}/${d.getDate()} (${names[d.getDay()]}) ${hol?hol.name:''}</div>
+                    <div style="font-size:0.75em; color:var(--primary);">展開 ▼</div>
+                </div>
+                <div class="day-content">`;
+            
+            ['早診','午診','晚診'].forEach(sh => {
+                let c = sh==='早診'?'title-m':(sh==='午診'?'title-a':'title-e');
+                h += `<div class="shift-box"><div class="shift-title ${c}">${sh}</div>`;
+                
+                // 醫師請假
+                data.drLeaves.filter(v => v.date === ds && (v.shift === sh || v.shift === '全天'))
+                    .forEach(v => h += `<div class="dr-leave">⚠️ ${v.name} 醫師請假 (${v.type})</div>`);
+                
+                // 助理排班 (全院)
+                const ss = data.clinic.filter(v => v.date === ds && v.shift.includes(sh[0]));
+                if(ss.length) {
+                    h += `<div class="staff-list">`;
+                    ss.forEach(s => h += `<div class="staff-tag"><span class="pos-sub">${s.label}</span><b>${s.empName}</b></div>`);
+                    h += `</div>`;
+                } else h += `<div style="color:#ccc; font-size:0.8em; padding:5px;">無排班</div>`;
+                
+                h += `</div>`;
+            });
+            
+            // 該日休假助理
+            const lv = data.allStaffLeaves.filter(v => v.date === ds);
+            if(lv.length) {
+    // 這裡會顯示例如： 某某某 (早診:病假)
+    h += `<div class="footer-leave">🚫 助理休假：${lv.map(v => `<b>${v.name}</b>(${v.shift}:${v.type})`).join('、')}</div>`;
+}
+            
+            list.append(h + `</div></div>`);
+        });
+        // 預設展開今日或第一天
+        $('.day-card').first().find('.day-content').show();
+    }
+</script>
+</body>
+</html>

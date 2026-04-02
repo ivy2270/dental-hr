@@ -1,0 +1,1183 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>牙醫診所週排班系統 - 專業管理版</title>
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.0/Sortable.min.js"></script>
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+<style>
+    :root { 
+        --primary: #007bff; --success: #28a745; --error: #dc3545; --border: #dee2e6; 
+        --morning: #007bff; --afternoon: #28a745; --evening: #fd7e14;
+        --dr-bg: #495057; --staff-bg: #28a745; --view-bg: #fdf6e3;
+    }
+    * { box-sizing: border-box; }
+    body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; margin: 0; background: #f0f2f5; display: flex; height: 100vh; overflow: hidden; }
+    
+    /* --- 側邊欄 (桌機預設) --- */
+    .sidebar { width: 190px; background: white; border-right: 1px solid var(--border); padding: 12px; flex-shrink: 0; display: flex; flex-direction: column; z-index: 100; box-shadow: 2px 0 5px rgba(0,0,0,0.05); }
+    .staff-item { padding: 8px; margin-bottom: 8px; background: #fff; border: 1px solid #ddd; border-radius: 6px; cursor: grab; font-size: 13px; box-shadow: 0 1px 2px rgba(0,0,0,0.05); transition: background 0.2s; }
+    .staff-item:hover { background: #f8f9fa; border-color: var(--primary); }
+    .staff-header { display: flex; justify-content: space-between; align-items: center; }
+    .count-badge { color: white; border-radius: 3px; padding: 1px 4px; font-size: 10px; font-weight: bold; }
+    .bg-safe { background: var(--success); }
+    .bg-danger { background: var(--error); }
+    .bg-neutral { background: #adb5bd; }
+    .leave-warn { color: var(--error); font-size: 10px; display: block; margin-top: 2px; font-weight: bold; }
+
+    /* --- 主區域 (桌機預設) --- */
+    .main-content { flex-grow: 1; padding: 12px; display: flex; flex-direction: column; overflow-x: auto; }
+    .version-bar { background: #fff; padding: 10px; border-radius: 8px; margin-bottom: 10px; border: 1px solid var(--border); display: flex; align-items: center; gap: 10px; overflow-x: auto; white-space: nowrap; flex-shrink: 0; }
+    .ver-btn { padding: 5px 12px; font-size: 11px; background: #f8f9fa; border: 1px solid #ccc; border-radius: 20px; cursor: pointer; flex-shrink: 0; transition: all 0.2s; }
+    .ver-btn:hover { background: var(--primary); color: white; border-color: var(--primary); }
+    .ver-btn.active { background: #ffc107; border-color: #ffc107; font-weight: bold; color: #000; }
+
+    /* --- 班表容器 (桌機橫排) --- */
+    .weekly-container { display: flex; gap: 10px; flex-grow: 1; width: 100%; }
+    .day-column { width: calc(100% / 6); background: #fff; border-radius: 8px; border: 1px solid var(--border); display: flex; flex-direction: column; min-width: 165px; box-shadow: 0 2px 4px rgba(0,0,0,0.02); }
+    .day-header { background: #343a40; color: white; padding: 10px 5px; text-align: center; font-size: 14px; font-weight: bold; border-top-left-radius: 7px; border-top-right-radius: 7px; }
+    .day-header small { font-size: 10px; display: block; opacity: 0.8; margin-top: 2px; font-weight: normal; }
+    .day-content { display: block; } /* 桌機版預設全開 */
+    
+    .read-only-mode .day-column { background: var(--view-bg); }
+
+    /* 診次樣式 */
+    .shift-section { padding: 6px; border-left: 4px solid #ddd; margin-bottom: 5px; }
+    .shift-morning { border-left-color: var(--morning); background: rgba(0,123,255,0.02); }
+    .shift-afternoon { border-left-color: var(--success); background: rgba(40,167,69,0.02); }
+    .shift-evening { border-left-color: var(--evening); background: rgba(253,126,20,0.02); }
+    .shift-title { font-size: 11px; font-weight: 800; color: #666; display: flex; justify-content: space-between; padding: 2px 4px; margin-bottom: 4px; }
+    
+    .slot-box { margin-bottom: 4px; border: 1px solid #e9ecef; border-radius: 4px; background: #fff; display: flex; align-items: stretch; overflow: hidden; min-height: 40px; }
+    .dr-name-label { width: 45px; background: #f8f9fa; color: #333; padding: 4px; font-weight: bold; font-size: 11px; display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; line-height: 1.2; border-right: 1px solid #e9ecef; flex-shrink: 0; position: relative; }
+    .slot-disabled { opacity: 0.6; background: #f1f3f5 ; }
+    .drop-zone[data-active="false"] { pointer-events: none; background: repeating-linear-gradient(45deg, #f5f5f5, #f5f5f5 5px, #ececec 5px, #ececec 10px); }
+
+    .drop-zone { flex-grow: 1; min-height: 38px; padding: 4px; display: flex; flex-wrap: wrap; gap: 4px; align-content: flex-start; }
+    .staff-tag { background:var(--staff-bg); color: white; padding: 2px 6px; border-radius: 4px; font-size: 12px; display: flex; align-items: center; font-weight: 500; box-shadow: 0 1px 2px rgba(0,0,0,0.1); }
+    .remove { cursor: pointer; margin-left: 5px; font-weight: bold; font-size: 14px; padding: 2px 10px !important; display: inline-block;}
+
+    .day-leave-area { background: #f8f9fa; padding: 8px; font-size: 11px; border-top: 1px solid var(--border); height: 90px; overflow-y: auto; }
+    .leave-title { font-size: 10px; color: #adb5bd; font-weight: bold; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .leave-item { color: #495057; padding: 2px 0; border-bottom: 1px solid #eee; }
+
+    /* 公用元件 */
+    button { font-size: 12px; cursor: pointer; border-radius: 6px; border: none; transition: opacity 0.2s; }
+    button:active { opacity: 0.7; }
+    .btn-main { background: var(--primary); color: white; padding: 10px; font-weight: bold; width: 100%; margin-top: 5px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+
+    /* Overlay 樣式 */
+    #loadingOverlay { position: fixed; inset: 0; background: rgba(255,255,255,0.8); z-index: 10001; display: none; flex-direction: column; justify-content: center; align-items: center; }
+    .spinner { width: 40px; height: 40px; border: 4px solid #f3f3f3; border-top: 4px solid var(--primary); border-radius: 50%; animation: spin 1s linear infinite; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+    #loginOverlay { position: fixed; inset: 0; background: #212529; z-index: 9999; display: flex; justify-content: center; align-items: center; }
+    .login-card { background: white; padding: 25px; border-radius: 16px; width: 300px; text-align: center; box-shadow: 0 10px 25px rgba(0,0,0,0.5); }
+    .pattern-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin: 20px 0; }
+    .dot { width: 55px; height: 55px; background: #f0f0f0; border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; font-weight: bold; transition: all 0.2s; }
+    .dot.active { background: var(--primary); color: white; transform: scale(1.1); }
+
+    #copyModal { position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 10002; display: none; justify-content: center; align-items: center; backdrop-filter: blur(2px); }
+    .modal-body { background: white; padding: 25px; border-radius: 12px; width: 320px; max-height: 80vh; overflow-y: auto; }
+	
+	/* 隱藏的輸出容器，確保不影響使用者畫面 */
+#hiddenRenderArea {
+    position: absolute;
+    left: -9999px;
+    top: -9999px;
+}
+
+/* A4 畫布樣式 */
+.a4-print-canvas {
+    width: 1123px; /* A4 橫向像素 */
+    /* 高度不固定，由內容撐開，之後用 JS scale 縮回 A4 */
+    background: white;
+    padding: 20px;
+    display: flex;
+    gap: 8px;
+    transform-origin: top left; /* scale 從左上角開始縮 */
+}
+
+.print-col {
+    flex: 1;
+    border: 1px solid #ddd;
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.print-day-header {
+    background: #f8f9fa;
+    padding: 7px 5px;
+    text-align: center;
+    border-bottom: 2px solid #333;
+    font-weight: bold;
+    font-size: 13px;
+    flex-shrink: 0;
+}
+
+.print-shift-section {
+    /* 不用 flex:1，讓各診次高度由內容決定 */
+    padding: 4px;
+    border-bottom: 1px solid #eee;
+    flex-shrink: 0;
+}
+
+.print-shift-title {
+    font-size: 11px;
+    font-weight: bold;
+    color: #666;
+    margin-bottom: 3px;
+}
+
+.print-slot {
+    background: #f0f0f0;
+    margin-bottom: 3px;
+    padding: 3px 6px;
+    border-radius: 3px;
+    font-size: 12px;
+}
+
+.print-staff-tag {
+    display: inline-block;
+    background: var(--staff-bg);
+    color: white;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-size: 11px;
+    margin-left: 5px;
+}
+
+    /* =========================================
+       手機版 RWD 優化 (螢幕寬度 < 768px)
+       ========================================= */
+    @media (max-width: 768px) {
+        body { flex-direction: column; }
+        
+        .main-content { 
+            flex: 1; height: auto; overflow-y: auto; 
+            padding: 10px; padding-bottom: 250px; /* 預留底部空間 */
+            display: flex; flex-direction: column; 
+        }
+
+        /* 歷史快照橫幅不縮小 */
+        .view-banner { flex-shrink: 0; }
+        .version-bar { flex-shrink: 0; min-height: 60px; margin: 0 0 10px 0; }
+
+        /* 底部固定側邊欄 */
+        .sidebar { 
+            width: 100%; height: auto; position: fixed; bottom: 0; left: 0; 
+            background: #fff; padding: 10px; z-index: 1001; 
+            box-shadow: 0 -3px 10px rgba(0,0,0,0.1); 
+            display: flex; flex-direction: column;
+			overflow: visible !important;			
+        }
+
+        /* 隱藏手機版標題 */
+        #adminInfo, .sidebar > div:first-child { display: none ; }
+
+#staffPool {
+        display: flex !important;
+        flex-direction: row !important;
+        flex-wrap: nowrap !important; /* 強制不換行 */
+        overflow-x: auto !important;  /* 明確開啟橫向捲軸 */
+        overflow-y: hidden;           /* 關閉垂直捲軸 */
+		touch-action: pan-x !important;
+        -webkit-overflow-scrolling: touch;
+        min-height: 50px;             /* 給捲軸留出空間 */
+		gap: 10px !important;         
+        padding: 10px 5px !important;
+    }
+    .staff-item {
+        flex-shrink: 0 !important;    /* 關鍵：防止寬度被壓縮 */
+        min-width: 110px;
+		margin: 0 !important;
+		
+    }
+
+		.count-badge {
+            font-size: 9px;
+            padding: 1px 3px;
+            line-height: 1;
+        }
+
+        /* 確保助理池內的文字與數字在一行內 */
+        .staff-header {
+            width: 100%;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 4px;
+        }
+
+        /* 月曆容器 (中間) */
+        #datePickerContainer { margin: 5px 0; padding: 5px ; display: block; }
+        
+/* 按鈕區 (最下層) 修正 */
+        .sidebar > div:last-child { 
+            display: flex; 
+            gap: 5px; 
+            margin-top: 5px; 
+            align-items: stretch; /* 強制子元素(按鈕)拉伸填滿高度 */
+        }
+
+        .btn-main { 
+            margin-top: 0 !important; 
+            flex: 1; 
+            height: 42px; /* 明確指定高度，確保三個按鈕一模一樣高 */
+            padding: 0 5px; /* 減少內距，讓文字在窄螢幕也能顯示 */
+            font-size: 12px; 
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1.2;
+            white-space: normal; /* 若按鈕字數過多，允許內部換行但維持總高度 */
+        }
+
+        /* 班表垂直排列與折疊 */
+        .weekly-container { flex-direction: column; }
+        .day-column { width: 100%; min-width: unset; margin-bottom: 10px; }
+        .day-content { display: none; } /* 手機版預設隱藏 */
+        .day-column.active .day-content { display: block; }
+
+        /* 箭頭垂直置中 */
+        .day-header { cursor: pointer; position: relative; padding: 15px; }
+        .day-header::after { 
+            content: '▼'; position: absolute; right: 20px; 
+            top: 50%; transform: translateY(-50%); 
+            font-size: 12px; opacity: 0.5; 
+        }
+        .day-column.active .day-header::after { content: '▲'; }
+        
+        .dr-name-label { width: 55px; font-size: 12px; }
+    }
+
+    /* --- 醫師備註樣式 --- */
+    .dr-name-label { cursor: pointer; }
+    .dr-name-label:hover { filter: brightness(1.15); }
+    .read-only-mode .dr-name-label { cursor: default; }
+    .dr-note-badge {
+        display: block; font-size: 9px; font-weight: normal;
+        color: #fd7e14; margin-top: 2px; line-height: 1.2;
+        word-break: break-all; text-align: center;
+        max-width: 42px; overflow: hidden;
+    }
+    /* 深色背景（醫師卡）的備註用白色 */
+    .dr-name-label[data-is-dr="true"] .dr-note-badge { color: #ffc107; }
+
+    /* 備註編輯 modal */
+    #drNoteModal {
+        position: fixed; inset: 0; background: rgba(0,0,0,0.55);
+        z-index: 10005; display: none; justify-content: center; align-items: center;
+    }
+    #drNoteModal .modal-inner {
+        background: white; border-radius: 14px; padding: 22px 20px 18px;
+        width: 300px; box-shadow: 0 8px 30px rgba(0,0,0,0.3);
+    }
+    #drNoteModal h4 { margin: 0 0 6px; font-size: 15px; color: #343a40; }
+    #drNoteModal p  { margin: 0 0 12px; font-size: 12px; color: #888; }
+    #drNoteInput {
+        width: 100%; border: 1px solid #ced4da; border-radius: 8px;
+        padding: 9px 10px; font-size: 14px; resize: none;
+        font-family: inherit; outline: none; margin-bottom: 14px;
+    }
+    #drNoteInput:focus { border-color: var(--primary); }
+    .dr-note-btns { display: flex; gap: 8px; }
+    .dr-note-btns button { flex: 1; padding: 9px; font-size: 13px; border-radius: 8px; border: none; cursor: pointer; }
+    #drNoteConfirm { background: var(--primary); color: white; font-weight: bold; }
+    #drNoteClear   { background: #f8f9fa; color: var(--error); border: 1px solid #dee2e6; }
+    #drNoteCancel  { background: #f8f9fa; color: #555; border: 1px solid #dee2e6; }
+
+</style>
+</head>
+<body id="appBody">
+
+<div id="loadingOverlay"><div class="spinner"></div><p>處理中...</p></div>
+
+<div id="copyModal">
+    <div class="modal-body">
+        <h4 style="margin-top:0;">選擇歷史週版本</h4>
+        <div id="copyVersionList"></div>
+        <button onclick="document.getElementById('copyModal').style.display='none'" style="margin-top:15px; width:100%; padding:10px; background:#6c757d; color:white;">取消</button>
+    </div>
+</div>
+
+<div class="sidebar">
+    <div id="adminInfo" style="font-size:14px; margin-bottom:10px; color:var(--primary); font-weight:bold; text-align:center;"></div>
+    
+    <div id="staffPool"></div>
+
+    <div id="datePickerContainer" style="background:#f8f9fa; padding:10px; border-radius:8px; margin-top:10px; border:1px solid #eee;">
+        <label style="font-size:10px; color:#999; display:block; margin-bottom:4px;">選擇週一日期</label>
+        <input type="date" id="mondayPicker" onchange="fetchData()" style="width:100%; font-size:13px; border:1px solid #ddd; padding:5px; border-radius:4px;">
+    </div>
+    
+    <div style="margin-top:10px;">
+        <button onclick="openCopyModal()" class="btn-main" style="background:#6f42c1; margin-bottom:8px;">從歷史週複製</button>
+        <button id="btnSave" onclick="saveSchedule()" class="btn-main" style="background:var(--success)">發佈班表</button>
+        <button id="btnExitView" onclick="fetchData()" class="btn-main" style="background:var(--error); display:none;">結束預覽</button>
+		<button onclick="showImageOptions()" class="btn-main" style="background: #fd7e14; margin-bottom: 8px;">
+    產生班表圖卡
+</button>
+		<button onclick="window.location.href='index.html'" class="btn-main" style="background:#6c757d;">⬅ 返回系統選單</button>
+    </div>
+</div>
+
+<div class="main-content">
+    <div class="view-banner" id="viewBanner" style="background:#ffc107; text-align:center; font-weight:bold; padding:6px; border-radius:4px; margin-bottom:10px; font-size:13px; display:none;">⚠️ 目前正在查看歷史版本（唯讀）</div>
+    <div class="version-bar" id="versionSlider">
+        <span style="font-size:12px; font-weight:bold; color:#555;">本週快照：</span>
+        <div id="verButtons" style="display:flex; gap:8px;"></div>
+    </div>
+	<div id="noteContainer" style="margin-bottom: 10px; background: #fff8db; padding: 10px; border-radius: 8px; border: 1px solid #ffeeba;">
+    <label style="font-size: 12px; font-weight: bold; color: #856404; display: block; margin-bottom: 5px;">📌 本週公告 / 備註事項：</label>
+    <textarea id="weekNote" placeholder="點擊輸入本週特殊公告..." 
+        style="width: 100%; border: 1px solid #f5e79e; background: transparent; font-size: 13px; min-height: 50px; resize: vertical; outline: none;"></textarea>
+</div>
+    <div class="weekly-container" id="weeklyGrid"></div>
+</div>
+
+<div id="printOptionModal" style="position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:100000; display:none; align-items:center; justify-content:center;">
+    <div style="background:white; padding:25px; border-radius:15px; width:300px; text-align:center; box-shadow:0 10px 25px rgba(0,0,0,0.3);">
+        <h3 style="margin-top:0;">選擇輸出模式</h3>
+        <p style="color:#666; font-size:14px; margin-bottom:20px;">請選擇適合的圖片樣式</p>
+        
+        <button onclick="execPrint('color')" class="btn-main" style="background:#fd7e14; margin-bottom:12px; width:100%;">🌈 彩色 (適合 LINE/螢幕查看)</button>
+        <button onclick="execPrint('bw')" class="btn-main" style="background:#495057; margin-bottom:12px; width:100%;">🖨️ 黑白 (適合紙本列印)</button>
+        
+        <button onclick="document.getElementById('printOptionModal').style.display='none'" style="background:none; border:none; color:#999; cursor:pointer; font-size:14px; text-decoration:underline;">取消</button>
+    </div>
+</div>
+
+<div id="imagePreviewModal" style="position:fixed; inset:0; background:rgba(0,0,0,0.85); z-index:99999; display:none; flex-direction:column; align-items:center; justify-content:center; padding:20px;">
+    <div style="background:white; padding:20px; border-radius:12px; max-width:95%; max-height:80%; overflow:auto; box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+        <h3 style="margin-top:0; text-align:center; color:#333;">週班表圖卡預覽 (A4橫向)</h3>
+        <div id="canvasContainer" style="border:1px solid #ccc; line-height:0;"></div>
+        <p style="color:#666; font-size:13px; text-align:center; margin-top:10px;">※ 若無法下載，請長按圖片選擇「儲存圖片」</p>
+    </div>
+    <div style="margin-top:20px; display:flex; gap:15px;">
+        <button id="downloadBtn" class="btn-main" style="background:#28a745; width:150px; cursor:pointer;">💾 下載圖片</button>
+        <button onclick="document.getElementById('imagePreviewModal').style.display='none'" class="btn-main" style="background:#6c757d; width:150px; cursor:pointer;">❌ 關閉預覽</button>
+    </div>
+</div>
+
+
+<!-- 醫師備註編輯 Modal -->
+<div id="drNoteModal">
+    <div class="modal-inner">
+        <h4 id="drNoteTitle">✏️ 編輯備註</h4>
+        <p id="drNoteSubtitle">點擊確認儲存，清除可刪除備註</p>
+        <textarea id="drNoteInput" rows="2" maxlength="20" placeholder="例：手術、開會、遲到…（最多20字）"></textarea>
+        <div class="dr-note-btns">
+            <button id="drNoteConfirm" onclick="confirmDrNote()">確認</button>
+            <button id="drNoteClear"   onclick="clearDrNote()">清除</button>
+            <button id="drNoteCancel"  onclick="closeDrNoteModal()">取消</button>
+        </div>
+    </div>
+</div>
+
+<div id="renderTempArea" style="position:absolute; left:-9999px; top:-9999px;"></div>
+
+<script>
+    // JS 邏輯完全保留，修復顏色顯示 Bug 與醫師深灰色標籤
+    const webAppUrl = "https://script.google.com/macros/s/AKfycbye2J2M0L1A5--QGWKAHplTNynXPHqiwfXZYCQRSDL1B6KpAro2-47d3aggF6Lmx1AxMA/exec";
+    let appData = null;
+    let currentUser = null;
+    let isReadOnly = false;
+    let sortables = [];
+    // 醫師備註：key = "日期_診次_醫師名"，value = 備註文字
+    let drNotes = {};
+    let _drNoteActiveKey = null; // 目前正在編輯的 key
+
+    // --- 工具函數 ---
+
+    function showLoading(show) { document.getElementById('loadingOverlay').style.display = show ? 'flex' : 'none'; }
+
+    function formatDate(d) {
+        if(!d) return "";
+        const date = new Date(d);
+        return isNaN(date.getTime()) ? d : `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    }
+
+    // 根據助理 ID 產生固定且美觀的 HSL 顏色
+function getStaffColor(empId) {
+    if (!empId) return '#adb5bd';
+    const str = String(empId);
+    let hash = 0;
+    
+    // 1. 使用質數 31 來放大字元間的差異
+    for (let i = 0; i < str.length; i++) {
+        hash = (hash * 31) + str.charCodeAt(i);
+        hash = hash & hash; // 轉為 32位元整數
+    }
+
+    // 2. 使用「黃金比例推導出的數值」來分佈色相，這能讓相鄰的 ID 跳轉到完全不同的色區
+    // 137.5 度是著名的黃金角度，能有效打散顏色
+    const h = Math.abs(hash * 137.5) % 360;
+    
+    // 3. 稍微調整亮度，讓顏色更有層次感
+    return `hsl(${h}, 65%, 40%)`;
+}
+    // 醫師請假檢查
+    function checkDrLeave(n, d, sh) { 
+        if (!appData || !appData.drLeaves) return null;
+        const leave = appData.drLeaves.slice(1).find(l => 
+            l[1] === n && 
+            formatDate(l[2]) === d && 
+            (l[3] === sh || l[3] === '全天')
+        );
+        return leave ? leave[4] : null; 
+    }
+
+    // 助理請假檢查
+    function checkStaffLeave(empId, dateStr, currentShift) {
+        if (!appData.staffLeaves) return null;
+        const leave = appData.staffLeaves.slice(1).find(l => {
+            const isSameId = l[0].toString() === empId.toString();
+            const isSameDate = formatDate(l[2]) === dateStr;
+            const leaveShift = l[3]; 
+            const isSameShift = (leaveShift === currentShift || leaveShift === '全天');
+            return isSameId && isSameDate && isSameShift;
+        });
+        return leave ? `${leave[3]}:${leave[4]}` : null; 
+    }
+
+    // --- 系統核心流程 ---
+
+    // =============================================
+    // 醫師備註功能
+    // =============================================
+
+    function openDrNoteModal(noteKey, drName, dateStr, shift) {
+        if (isReadOnly) return;
+        _drNoteActiveKey = noteKey;
+        document.getElementById('drNoteTitle').textContent = `✏️ ${drName}｜${dateStr} ${shift}診`;
+        document.getElementById('drNoteInput').value = drNotes[noteKey] || "";
+        document.getElementById('drNoteModal').style.display = 'flex';
+        // 自動 focus，讓手機也能立即彈出鍵盤
+        setTimeout(() => document.getElementById('drNoteInput').focus(), 50);
+    }
+
+    function closeDrNoteModal() {
+        document.getElementById('drNoteModal').style.display = 'none';
+        _drNoteActiveKey = null;
+    }
+
+    function confirmDrNote() {
+        if (!_drNoteActiveKey) return;
+        const val = document.getElementById('drNoteInput').value.trim();
+        if (val) {
+            drNotes[_drNoteActiveKey] = val;
+        } else {
+            delete drNotes[_drNoteActiveKey];
+        }
+        refreshDrNoteLabel(_drNoteActiveKey);
+        closeDrNoteModal();
+    }
+
+    function clearDrNote() {
+        if (!_drNoteActiveKey) return;
+        delete drNotes[_drNoteActiveKey];
+        refreshDrNoteLabel(_drNoteActiveKey);
+        closeDrNoteModal();
+    }
+
+    // 確認/清除後即時更新 UI 上的備註小字
+    function refreshDrNoteLabel(noteKey) {
+        const label = document.querySelector(`.dr-name-label[data-note-key="${noteKey}"]`);
+        if (!label) return;
+        // 移除舊的 badge
+        const old = label.querySelector('.dr-note-badge');
+        if (old) old.remove();
+        // 若有新備註就加上去
+        const text = drNotes[noteKey];
+        if (text) {
+            const badge = document.createElement('span');
+            badge.className = 'dr-note-badge';
+            badge.textContent = text;
+            // 插在第一個 <span>（醫師名）後面
+            const nameSpan = label.querySelector('span');
+            if (nameSpan) nameSpan.after(badge);
+            else label.prepend(badge);
+        }
+    }
+
+    // 關閉 modal：點擊遮罩也可關閉
+    document.getElementById('drNoteModal').addEventListener('click', function(e) {
+        if (e.target === this) closeDrNoteModal();
+    });
+
+    // Enter 鍵快速確認（Shift+Enter 換行）
+    document.getElementById('drNoteInput').addEventListener('keydown', function(e) {
+        if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); confirmDrNote(); }
+        if (e.key === 'Escape') closeDrNoteModal();
+    });
+
+        function initSystem() {
+        const today = new Date();
+        const diff = today.getDate() - today.getDay() + (today.getDay() === 0 ? -6 : 1);
+        const monday = new Date(today.setDate(diff));
+        document.getElementById('mondayPicker').value = formatDate(monday);
+        fetchData();
+    }
+
+    async function fetchData() {
+        showLoading(true);
+        isReadOnly = false;
+        toggleViewMode(false);
+        const monday = document.getElementById('mondayPicker').value;
+        try {
+            const res = await fetch(webAppUrl, { method: "POST", body: JSON.stringify({ action: "getScheduleInitData", targetMonday: monday }) });
+            appData = await res.json();
+            // 還原週備註
+            const weekNoteInput = document.getElementById('weekNote');
+            if (weekNoteInput) weekNoteInput.value = appData.weekNote || "";
+            // 還原醫師備註（從快照/live 資料中讀回）
+            drNotes = (appData.drNotes && typeof appData.drNotes === 'object') ? appData.drNotes : {};
+            renderStaffPool(); 
+            renderSchedule();
+            fetchSnapshots(monday);
+        } finally { showLoading(false); }
+    }
+
+    function renderSchedule() {
+        const currentWeekDates = appData.weekDates.map(d => formatDate(d));
+        const hasSavedData = appData.liveSchedule && appData.liveSchedule.length > 1 && 
+            appData.liveSchedule.slice(1).some(row => {
+                const rowDate = formatDate(row[0]);
+                return currentWeekDates.includes(rowDate) && row[2] !== "";
+            });
+
+        const grid = document.getElementById('weeklyGrid');
+        const shifts = [ {n: "早", c: "morning"}, {n: "午", c: "afternoon"}, {n: "晚", c: "evening"} ];
+        const dayNames = ["週一", "週二", "週三", "週四", "週五", "週六"];
+        sortables = []; 
+
+        grid.innerHTML = appData.weekDates.map((dateStr, i) => {
+            const currentFormattedDate = formatDate(dateStr);
+            const holiday = appData.holidays ? appData.holidays.find(h => formatDate(h[0]) === currentFormattedDate) : null;
+            const isClinicClosed = holiday && holiday[2] === 'No';
+
+            return `
+                <div class="day-column"> 
+            <div class="day-header" onclick="handleDayHeaderClick(this.parentElement)">
+                ${dayNames[i]}<small>${currentFormattedDate}</small>
+            </div>
+            <div class="day-content">
+                <div style="flex-grow:1; overflow-y:auto; padding:4px;">
+                            ${isClinicClosed ? '<div style="text-align:center; padding:30px; color:#adb5bd; font-size:13px;">🏨 本日休診</div>' : 
+                              shifts.map(sh => `
+                                <div class="shift-section shift-${sh.c}" data-date="${currentFormattedDate}" data-shift="${sh.n}">
+                                    <div class="shift-title">
+                                        <span>${sh.n}診</span>
+                                        <button style="color:var(--primary); background:none; font-weight:bold; padding:0;" onclick="event.stopPropagation(); addExtraSlotPrompt(${i+1},'${sh.n}','${currentFormattedDate}')">+ 加診</button>
+                                    </div>
+                                    <div class="slot-container">${renderSlots(i+1, sh.n, currentFormattedDate, hasSavedData)}</div>
+                                </div>
+                              `).join('')}
+                        </div>
+                        <div class="day-leave-area">${renderDayLeaves(currentFormattedDate)}</div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        
+        initSortable();
+        fillExistingData();
+        updateCounts();
+    }
+
+    function renderSlots(day, shift, dateStr, hasSavedData) {
+        const slots = appData.template.slice(1).filter(t => t[1] == day && t[2] == shift);
+        const empMap = {}; 
+        appData.employees.forEach(e => empMap[e[0]] = e[1]);
+
+        return slots.map(s => {
+            const drName = s[4];
+            const pos = s[5];
+            const defaultId = s[6];
+            const isPublic = s[3] !== "醫師連動";
+            const leaveReason = checkDrLeave(drName, dateStr, shift[0]); 
+            
+            let defaultStaffTag = "";
+            if (defaultId && !leaveReason && !hasSavedData) {
+                const staffColor = getStaffColor(defaultId);
+                defaultStaffTag = `
+    <div class="staff-tag" data-id="${defaultId}" style="background-color: ${staffColor}; color: white; border: none;">
+        ${empMap[defaultId] || defaultId} 
+        <span class="remove" 
+              onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();">×</span>
+    </div>`;
+            }
+            return createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift, false, defaultStaffTag);
+        }).join('');
+    }
+
+function createSlotHTML(drName, pos, isPublic, leaveReason, dateStr, day, shift, isExtra, defaultTag = "", drNote = "") {
+    const isDisabled = !isPublic && leaveReason !== null;
+    const labelStyle = isPublic 
+        ? 'background:#e9ecef; color:#666;' 
+        : 'background:var(--dr-bg); color:white;';
+
+    // 醫師備註的 key：日期_診次_醫師名（公區格子用 pos 當 key）
+    const noteKey = `${dateStr}_${shift}_${isPublic ? pos : drName}`;
+    const noteText = drNote || drNotes[noteKey] || "";
+    const noteBadge = noteText
+        ? `<span class="dr-note-badge">${noteText}</span>` : "";
+
+    // 點擊醫師標籤開啟備註 modal（唯讀模式不觸發）
+    const clickHandler = !isPublic
+        ? `onclick="event.stopPropagation(); openDrNoteModal('${noteKey}', '${drName}', '${dateStr}', '${shift}')"` : "";
+
+    return `
+        <div class="slot-box ${isDisabled ? 'slot-disabled' : ''}">
+            <div class="dr-name-label" style="${labelStyle} position:relative;" 
+                 data-note-key="${noteKey}" data-is-dr="${!isPublic}"
+                 ${clickHandler}>
+                <span>${isPublic ? pos : drName}</span>
+                ${noteBadge}
+                ${isDisabled ? `<span class="dr-leave-note">${leaveReason}</span>` : ''}
+                ${isExtra ? `
+                    <span class="remove" 
+                          onclick="event.stopPropagation(); this.closest('.slot-box').remove(); updateCounts();" 
+                          ontouchend="event.stopPropagation(); this.closest('.slot-box').remove(); updateCounts();"
+                          style="position:absolute; top:0; right:2px; color:red; cursor:pointer; padding:5px;">×</span>` : ''}
+            </div>
+            <div class="drop-zone" 
+                 data-active="${isDisabled ? 'false' : 'true'}" 
+                 data-date="${dateStr}" 
+                 data-shift="${shift}" 
+                 data-dr="${drName}" 
+                 data-pos="${pos}">${defaultTag}</div>
+        </div>
+    `;
+}
+
+    function renderStaffPool() {
+        const pool = document.getElementById('staffPool');
+        const assistants = appData.employees.slice(1).filter(e => e[2] === "助理");
+        const selectedDate = document.getElementById('mondayPicker').value;
+
+        pool.innerHTML = assistants.map(a => {
+            const leaveType = checkStaffLeave(a[0], selectedDate, '全天');
+            const staffColor = getStaffColor(a[0]);
+            return `
+                <div class="staff-item" data-id="${a[0]}" style="border-left: 6px solid ${staffColor} ;">
+                    <div class="staff-header">
+                        <div>
+                            <strong>${a[1]}</strong>
+                            ${leaveType ? `<span class="leave-warn">休:${leaveType}</span>` : ''}
+                        </div>
+                        <div class="count-row" style="text-align:right">
+                            <span class="count-badge bg-neutral" id="month-count-${a[0]}">M:?</span>
+                            <span class="count-badge" id="week-count-${a[0]}">W:0</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }).join('');
+        new Sortable(pool, { group: { name: 'shared', pull: 'clone', put: false }, animation: 150,
+delay: 200,      // 按住 200 毫秒後才觸發拖曳，讓手指快速滑過時能順利滾動捲軸
+    delayOnTouchOnly: true, // 只在手機端套用延遲
+		sort: false });
+    }
+
+    // --- 拖放邏輯 ---
+
+    function initSortable() { document.querySelectorAll('.drop-zone').forEach(el => initSortableOnElement(el)); }
+    
+    function initSortableOnElement(el) {
+        if (!el || el.dataset.active !== "true") return;
+        const s = new Sortable(el, {
+            group: 'shared', 
+            animation: 150, 	
+            disabled: isReadOnly,
+			delay: 200,
+        delayOnTouchOnly: true,
+            onAdd: (evt) => {
+                const id = evt.item.dataset.id;
+                const date = el.dataset.date;
+                const shift = el.dataset.shift;
+                const name = evt.item.querySelector('strong')?.innerText || evt.item.innerText.replace('×', '').trim();
+
+                // 1. 重複排班偵測
+                const allZonesInShift = document.querySelectorAll(`.drop-zone[data-date="${date}"][data-shift="${shift}"]`);
+                let existsElsewhere = false;
+                allZonesInShift.forEach(zone => {
+                    if (zone !== el && zone.querySelector(`[data-id="${id}"]`)) existsElsewhere = true;
+                    if (zone === el && zone.querySelectorAll(`[data-id="${id}"]`).length > 1) existsElsewhere = true;
+                });
+
+                if (existsElsewhere) {
+                    alert(`警告：${name} 在 ${date} ${shift}診 已經排過班了！`);
+                    evt.item.remove();
+                    updateCounts();
+                    return;
+                }
+
+                // 2. 請假偵測
+                const leaveInfo = checkStaffLeave(id, date, shift); 
+                if (leaveInfo) {
+                    alert(`防呆：${name} 在 ${date} 有請假設定 (${leaveInfo})！`);
+                    evt.item.remove();
+                    updateCounts();
+                    return;
+                }
+
+                // 3. 樣式轉換：拖入時設定背景顏色
+                if (evt.item.classList.contains('staff-item')) {
+                    const staffColor = getStaffColor(id);
+                    evt.item.className = 'staff-tag';
+                    evt.item.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
+                    evt.item.innerHTML = `${name} <span class="remove" 
+    onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();" 
+    style="padding: 2px 8px;">×</span>`;
+                }
+                updateCounts();
+            },
+            onEnd: updateCounts
+        });
+        sortables.push(s);
+    }
+
+    // --- 資料填充與存檔 ---
+
+    function fillExistingData() {
+        if (!appData.liveSchedule || appData.liveSchedule.length <= 1) return;
+        const empMap = {}; appData.employees.forEach(e => empMap[e[0]] = e[1]);
+        appData.liveSchedule.slice(1).forEach(row => {
+            const date = formatDate(row[0]), shift = row[1], id = row[2], pos = row[3], dr = row[4];
+            let zone = document.querySelector(`.drop-zone[data-date="${date}"][data-shift="${shift}"][data-pos="${pos}"][data-dr="${dr}"]`);
+            if (!zone && pos === "加診醫師") {
+                addExtraSlot(0, shift, date, dr, "加診醫師", true);
+                zone = document.querySelector(`.drop-zone[data-date="${date}"][data-shift="${shift}"][data-pos="${pos}"][data-dr="${dr}"]`);
+            }
+            if (zone && id) {
+                const staffColor = getStaffColor(id);
+                const tag = document.createElement('div'); 
+                tag.className='staff-tag'; 
+                tag.dataset.id=id; 
+                tag.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
+                tag.innerHTML = `${empMap[id] || id} ${!isReadOnly ? `
+    <span class="remove" 
+          onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();"
+          style="padding: 2px 8px;">×</span>` : ''}`;
+                zone.appendChild(tag);
+            }
+        });
+        updateCounts();
+    }
+
+    async function saveSchedule() {
+        if(isReadOnly) return;
+        const data = [];
+        document.querySelectorAll('.drop-zone').forEach(zone => {
+            zone.querySelectorAll('.staff-tag').forEach(tag => {
+                data.push({ 
+                    date: zone.dataset.date, shift: zone.dataset.shift, 
+                    dr: zone.dataset.dr, pos: zone.dataset.pos, empId: tag.dataset.id 
+                });
+            });
+        });
+        if(data.length === 0 && !confirm("目前沒有排任何班，確定要發佈嗎？")) return;
+        if(!confirm("確定發佈本週班表？")) return;
+        showLoading(true);
+        try {
+            const res = await fetch(webAppUrl, { 
+                method: "POST", 
+                body: JSON.stringify({ 
+                    action: "saveWeeklySchedule", 
+                    targetMonday: document.getElementById('mondayPicker').value, 
+                    data: data,
+                    weekNote: document.getElementById('weekNote').value,
+                    drNotes: drNotes,
+                    operator: currentUser.name
+                }) 
+            });
+            const result = await res.json();
+            alert(result.message);
+            fetchData();
+        } catch(e) { alert("儲存失敗"); }
+        finally { showLoading(false); }
+    }
+
+    // --- 快照與版本管理 ---
+
+    function loadDataIntoUI(data) {
+        document.querySelectorAll('.drop-zone').forEach(z => z.innerHTML = '');
+        const empMap = {}; appData.employees.forEach(e => empMap[e[0]] = e[1]);
+        const currentWeekDates = appData.weekDates.map(d => formatDate(d));
+
+        data.forEach(item => {
+            const sDate = new Date(item.date);
+            const sDay = sDate.getDay() || 7; 
+            const tDate = currentWeekDates[sDay - 1];
+            let target = document.querySelector(`.drop-zone[data-date="${tDate}"][data-shift="${item.shift}"][data-dr="${item.dr}"][data-pos="${item.pos}"]`);
+            if(!target && item.pos === "加診醫師") {
+                addExtraSlot(sDay, item.shift, tDate, item.dr, "加診醫師", true);
+                target = document.querySelector(`.drop-zone[data-date="${tDate}"][data-shift="${item.shift}"][data-dr="${item.dr}"][data-pos="${item.pos}"]`);
+            }
+            if(target) {
+                const staffColor = getStaffColor(item.empId);
+                const tag = document.createElement('div'); 
+                tag.className='staff-tag'; 
+                tag.dataset.id = item.empId;
+                tag.style.cssText = `background-color: ${staffColor} ; color: white ; border: none ;`;
+                tag.innerHTML = `${empMap[item.empId] || item.empId} ${!isReadOnly ? `
+    <span class="remove" 
+          onclick="event.stopPropagation(); this.parentElement.remove(); updateCounts();"
+          style="padding: 2px 8px;">×</span>` : ''}`;
+                target.appendChild(tag);
+            }
+        });
+        updateCounts();
+    }
+
+    async function fetchSnapshots(targetMonday) {
+        try {
+            const res = await fetch(webAppUrl, { method: "POST", body: JSON.stringify({ action: "getSnapshots", targetMonday: targetMonday }) });
+            const snapshots = await res.json();
+            const displayList = [...snapshots].reverse();
+            const snapshotsWithV = displayList.map((s, idx) => ({ ...s, vName: `V${idx+1}` }));
+            snapshotsWithV.sort((a,b) => new Date(b.timestamp) - new Date(a.timestamp));
+            const container = document.getElementById('verButtons');
+            container.innerHTML = snapshotsWithV.map(s => `
+                <button class="ver-btn" onclick='viewSnapshot(${JSON.stringify(s.content)}, "${s.timestamp}")'>
+                    ${s.vName}: ${new Date(s.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                </button>
+            `).join('') || '<span style="font-size:11px; color:#999;">暫無快照</span>';
+        } catch(e) { console.error("快照抓取失敗", e); }
+    }
+
+    async function openCopyModal() {
+        showLoading(true);
+        try {
+            const res = await fetch(webAppUrl, { method: "POST", body: JSON.stringify({ action: "getAllWeeksLastSnapshots" }) });
+            const list = await res.json();
+            const container = document.getElementById('copyVersionList');
+            container.innerHTML = list.map(s => `
+                <button class="btn-main" style="background:#f8f9fa; color:#333; border:1px solid #ddd; text-align:left; margin-bottom:8px;" 
+                    onclick='applyCopy(${JSON.stringify(s.content)})'>
+                    📅 ${s.monday} 最終版本
+                </button>
+            `).join('') || '無歷史版本';
+            document.getElementById('copyModal').style.display = 'flex';
+        } finally { showLoading(false); }
+    }
+
+    function applyCopy(rawContent) {
+        if(!confirm("這將覆蓋目前編輯中的內容，確定嗎？")) return;
+        document.getElementById('copyModal').style.display = 'none';
+        isReadOnly = false;
+        toggleViewMode(false);
+        renderSchedule();
+        const parsed = typeof rawContent === 'string' ? JSON.parse(rawContent) : rawContent;
+        // 快照格式：{ schedule:[...], note:"", drNotes:{} }
+        const scheduleData = parsed.schedule || parsed.data || parsed;
+        const noteData = parsed.note || parsed.weekNote || "";
+        const weekNoteInput = document.getElementById('weekNote');
+        if (weekNoteInput) weekNoteInput.value = noteData;
+        // 複製歷史週時，drNotes 不帶入（日期不同，key 會對不上）
+        drNotes = {};
+        loadDataIntoUI(scheduleData);
+    }
+
+    function viewSnapshot(content, ts) {
+    isReadOnly = true;
+    
+    // 1. 先解析內容 (將 JSON 字串轉為物件)
+    const data = typeof content === 'string' ? JSON.parse(content) : content;
+
+    // 2. 切換 UI 模式
+    toggleViewMode(true, ts);
+    
+    // 3. 重新渲染空白表格結構
+    renderSchedule(); 
+
+    // 4. 還原週備註
+    const weekNoteInput = document.getElementById('weekNote');
+    if (weekNoteInput) weekNoteInput.value = data.note || data.weekNote || "";
+
+    // 5. 還原醫師備註
+    drNotes = (data.drNotes && typeof data.drNotes === 'object') ? data.drNotes : {};
+
+    // 6. 填充排班標籤
+    loadDataIntoUI(data.schedule || data.data || data);
+}
+
+    // --- UI 切換與其他功能 ---
+
+    function updateCounts() {
+        const counts = {};
+        document.querySelectorAll('.drop-zone .staff-tag').forEach(t => { if(t.dataset.id) counts[t.dataset.id] = (counts[t.dataset.id] || 0) + 1; });
+        appData.employees.slice(1).forEach(a => {
+            const empId = a[0], wBadge = document.getElementById(`week-count-${empId}`), mBadge = document.getElementById(`month-count-${empId}`);
+            const currentWeekUI = counts[empId] || 0;
+            if(wBadge) {
+                wBadge.innerText = `W:${currentWeekUI}`;
+                wBadge.className = 'count-badge ' + (currentWeekUI >= 10 ? 'bg-danger' : (currentWeekUI > 0 ? 'bg-safe' : 'bg-neutral'));
+            }
+            if(mBadge) {
+                const initialMonth = appData.monthStats[empId] || 0, savedInThisWeek = appData.thisWeekSavedCounts[empId] || 0;
+                mBadge.innerText = `M:${(initialMonth - savedInThisWeek) + currentWeekUI}`;
+            }
+        });
+    }
+
+    function toggleViewMode(readOnly, ts) {
+        const body = document.getElementById('appBody'), banner = document.getElementById('viewBanner');
+        const btnSave = document.getElementById('btnSave'), btnExit = document.getElementById('btnExitView');
+		// --- 【修改點 3】備註欄唯讀切換 ---
+    const weekNoteInput = document.getElementById('weekNote');
+        if(readOnly) {
+            body.classList.add('read-only-mode');
+            banner.style.display = 'block';
+            banner.innerText = `⚠️ 歷史快照 (${new Date(ts).toLocaleString()})`;
+            btnSave.style.display = 'none'; btnExit.style.display = 'block';
+            if (weekNoteInput) weekNoteInput.readOnly = true;
+            // 唯讀：移除醫師標籤的點擊事件
+            document.querySelectorAll('.dr-name-label[data-is-dr="true"]').forEach(el => el.style.pointerEvents = 'none');
+        } else {
+            body.classList.remove('read-only-mode');
+            banner.style.display = 'none';
+            btnSave.style.display = 'block'; btnExit.style.display = 'none';
+            if (weekNoteInput) weekNoteInput.readOnly = false;
+            // 編輯模式：恢復點擊
+            document.querySelectorAll('.dr-name-label[data-is-dr="true"]').forEach(el => el.style.pointerEvents = '');
+        }
+    }
+
+function handleDayHeaderClick(columnEl) {
+    // 如果是桌機寬度，不做任何動作
+    if (window.innerWidth > 768) return;
+
+    // 找到所有的欄位，把「非目前點擊」的欄位都關閉
+    document.querySelectorAll('.day-column').forEach(c => {
+        if (c !== columnEl) {
+            c.classList.remove('active');
+        }
+    });
+
+    // 切換目前點擊欄位的狀態
+    columnEl.classList.toggle('active');
+}
+
+    function addExtraSlot(day, shift, dateStr, drName, pos, isExtra) {
+        const container = document.querySelector(`.shift-section[data-date="${dateStr}"][data-shift="${shift}"] .slot-container`);
+        if(!container) return;
+        const div = document.createElement('div');
+        div.innerHTML = createSlotHTML(drName, pos, false, null, dateStr, day, shift, isExtra);
+        const element = div.firstElementChild;
+        container.appendChild(element);
+        initSortableOnElement(element.querySelector('.drop-zone'));
+    }
+
+    function addExtraSlotPrompt(day, shift, dateStr) {
+        if(isReadOnly) return;
+        const dr = prompt("請輸入加診醫師姓名:"); 
+        if(dr && dr.trim() !== "") addExtraSlot(day, shift, dateStr, dr.trim(), "加診醫師", true);
+    }
+
+    function renderDayLeaves(dateStr) {
+        const list = appData.staffLeaves ? appData.staffLeaves.slice(1).filter(l => formatDate(l[2]) === dateStr) : [];
+        return `<div class="leave-title">助理休假</div>` + 
+               (list.length ? list.map(l => {
+                   return `<div class="leave-item"><b>${l[1]}</b> (${l[3]}:${l[4]})</div>`;
+               }).join('') : '<div class="leave-item" style="color:#ccc;">無</div>');
+    }
+	
+	
+	// 顯示選擇視窗
+function showImageOptions() {
+    document.getElementById('printOptionModal').style.display = 'flex';
+}
+
+// 執行產圖並關閉視窗
+function execPrint(mode) {
+    document.getElementById('printOptionModal').style.display = 'none';
+    generateA4ScheduleImage(mode); // 呼叫原本寫好的函式
+}
+
+
+async function generateA4ScheduleImage(mode = 'color') {
+    showLoading(true, `正在繪製 ${mode === 'color' ? '彩色' : '黑白'} 圖卡...`);
+
+    const renderArea = document.createElement('div');
+    renderArea.id = "hiddenRenderArea";
+    document.body.appendChild(renderArea);
+
+    let html = `<div class="a4-print-canvas" id="captureTarget">`;
+    
+    const days = document.querySelectorAll('.day-column');
+    days.forEach(day => {
+        const dayName = day.querySelector('.day-header').innerText.replace('▼','').replace('▲','').trim();
+        html += `<div class="print-col">
+            <div class="print-day-header">${dayName}</div>`;
+
+        const dayContent = day.innerHTML;
+        if (dayContent.includes("本日休診")) {
+            html += `<div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #f8f9fa;">
+                <div style="border: 2px dashed #adb5bd; color: #adb5bd; padding: 15px; border-radius: 10px; text-align: center; width: 80%;">
+                    <div style="font-size: 24px;">🏨 本日休診</div>
+                </div>
+            </div>`;
+        } else {
+            const shifts = day.querySelectorAll('.shift-section');
+            shifts.forEach(shift => {
+                const shiftTitle = shift.querySelector('.shift-title').innerText.replace('+ 加診','').trim();
+                const isShiftClosed = shift.innerText.includes("休診");
+
+                html += `<div class="print-shift-section">
+                    <div class="print-shift-title">${shiftTitle}</div>`;
+                
+                if (isShiftClosed) {
+                    html += `<div style="color: #adb5bd; text-align: center; font-size: 12px;">🏠 休診</div>`;
+                } else {
+                    const slots = shift.querySelectorAll('.slot-box');
+                    slots.forEach(slot => {
+                        const drSpan = slot.querySelector('.dr-name-label span');
+                        const drName = drSpan ? drSpan.innerText : "未定";
+                        
+                        const drLeaveNote = slot.querySelector('.dr-leave-note');
+                        let leaveHtml = drLeaveNote ? `<div style="color: #d63031; font-size: 10px; font-weight: bold;">⚠️ ${drLeaveNote.innerText.trim()}</div>` : "";
+
+                        // 醫師備註（從 DOM 的 data-note-key 取出，再查 drNotes）
+                        const drLabel = slot.querySelector('.dr-name-label');
+                        const noteKey = drLabel ? drLabel.dataset.noteKey : "";
+                        const drNoteText = noteKey && drNotes[noteKey] ? drNotes[noteKey] : "";
+                        const drNoteHtml = drNoteText
+                            ? `<span style="color:#fd7e14; font-size:10px; font-weight:bold; margin-left:4px;">▸${drNoteText}</span>` : "";
+
+                        // --- 根據模式決定助理標籤樣式 ---
+                        const staffListHtml = Array.from(slot.querySelectorAll('.staff-tag'))
+                            .map(s => {
+                                const name = s.childNodes[0].textContent.trim();
+                                if (!name) return '';
+                                
+                                if (mode === 'color') {
+                                    // 彩色模式：抓取原始背景色
+                                    const bgColor = window.getComputedStyle(s).backgroundColor;
+                                    return `<span style="background-color: ${bgColor} !important; color: white; padding: 2px 5px; border-radius: 3px; margin-left: 3px; font-size: 11px; display: inline-block;">${name}</span>`;
+                                } else {
+                                    // 黑白模式：去背景，改用邊框或括號
+                                    return `<span style="background: none !important; color: #333; border: 1px solid #ccc; padding: 1px 4px; border-radius: 3px; margin-left: 3px; font-size: 11px; display: inline-block;">${name}</span>`;
+                                }
+                            }).join('');
+
+                        html += `<div class="print-slot" style="margin-bottom: 4px; padding: 3px; background: #f9f9f9; border-radius: 4px; border: 1px solid #eee;">
+                            ${leaveHtml}
+                            <b style="color:#333; font-size: 13px;">${drName}</b>${drNoteHtml} ${staffListHtml}
+                        </div>`;
+                    });
+                }
+                html += `</div>`;
+            });
+        }
+        
+        // 底部助理休假 (黑白模式下也微調樣式)
+        const leavesHtml = day.querySelector('.day-leave-area').innerHTML;
+        const leaveBg = mode === 'color' ? '#fff9db' : '#ffffff';
+        html += `<div style="padding:8px; font-size:11px; background:${leaveBg}; border-top: 1px solid #ddd;">${leavesHtml}</div>`;
+        html += `</div>`;
+    });
+    html += `</div>`;
+
+    renderArea.innerHTML = html;
+
+    try {
+        const target = document.getElementById('captureTarget');
+
+        // --- A方案：自動偵測高度，縮放至 A4 橫式比例 ---
+        const A4_W = 1123;
+        const A4_H = 794;
+        const MIN_SCALE = 0.55; // 最小縮放下限，低於此值內容太小不易閱讀
+
+        // Step 1：先讓 DOM 自然撐開，量出真實高度
+        target.style.transform = 'none';
+        // 稍等一個 tick 讓瀏覽器完成排版
+        await new Promise(r => setTimeout(r, 60));
+
+        const naturalH = target.scrollHeight;
+        const naturalW = target.scrollWidth;
+
+        // Step 2：計算需要的縮放比例（只在超過 A4 高度時才縮）
+        const scaleByH = naturalH > A4_H ? A4_H / naturalH : 1.0;
+        const scaleByW = naturalW > A4_W ? A4_W / naturalW : 1.0;
+        const autoScale = Math.max(Math.min(scaleByH, scaleByW), MIN_SCALE);
+
+        // Step 3：套用 scale，讓整個畫布縮小
+        target.style.transform = `scale(${autoScale})`;
+        target.style.transformOrigin = 'top left';
+
+        // 縮放後外層要跟著縮，否則 html2canvas 抓不到正確範圍
+        const scaledW = Math.round(naturalW * autoScale);
+        const scaledH = Math.round(naturalH * autoScale);
+        renderArea.style.width  = scaledW + 'px';
+        renderArea.style.height = scaledH + 'px';
+
+        // 再等一個 tick
+        await new Promise(r => setTimeout(r, 60));
+
+        // Step 4：html2canvas 擷取縮放後的實際像素大小，scale:2 提高解析度
+        const canvas = await html2canvas(target, {
+            scale: 2,
+            useCORS: true,
+            width:  scaledW,
+            height: scaledH,
+            scrollX: 0,
+            scrollY: 0
+        });
+
+        // Step 5：顯示縮放提示（若有縮放才顯示）
+        if (autoScale < 0.99) {
+            console.log(`圖卡自動縮放至 ${Math.round(autoScale * 100)}%（內容高度 ${naturalH}px → ${scaledH}px）`);
+        }
+
+        const container = document.getElementById('canvasContainer');
+        container.innerHTML = '';
+        const img = new Image();
+        img.src = canvas.toDataURL("image/png");
+        img.style.width = "100%";
+        container.appendChild(img);
+        document.getElementById('imagePreviewModal').style.display = 'flex';
+        
+        document.getElementById('downloadBtn').onclick = () => {
+            const link = document.createElement('a');
+            link.download = `診所班表_${mode}_${document.getElementById('mondayPicker').value}.png`;
+            link.href = canvas.toDataURL("image/png");
+            link.click();
+        };
+    } catch (e) {
+        console.error(e);
+        alert("產圖失敗：" + e.message);
+    } finally {
+        document.body.removeChild(renderArea);
+        showLoading(false);
+    }
+}
+
+    // --- 初始化 ---
+
+    window.onload = function() {
+        console.log("系統啟動中...");
+        const urlParams = new URLSearchParams(window.location.search);
+        const empId = urlParams.get('empId');
+        const name = urlParams.get('name');
+        const role = urlParams.get('role');
+
+        if (!empId || (role !== "主管" && role !== "Admin")) {
+            alert("權限不足，將返回主選單");
+            window.location.href = "index.html";
+            return;
+        }
+
+        currentUser = { empId, name, role };
+        const infoDiv = document.getElementById('adminInfo');
+        if (infoDiv) infoDiv.innerText = "管理者: " + name;
+
+        initSystem();
+    };
+</script>
+</body>
+</html>
