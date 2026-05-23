@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>診所公用打卡看板</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="config.js"></script>
+    <style>
+        :root { --primary: #007bff; --success: #28a745; --error: #dc3545; --bg: #f8f9fa; }
+        body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; padding: 15px; }
+        .container { max-width: 800px; margin: 0 auto; display: flex; flex-direction: column; gap: 15px; height: 95vh; }
+        
+        /* 助理名單選擇區 */
+        .staff-grid { 
+            display: grid; grid-template-columns: repeat(auto-fill, minmax(90px, 1fr)); 
+            gap: 10px; background: white; padding: 15px; border-radius: 12px; box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            max-height: 40vh; overflow-y: auto;
+        }
+        .staff-btn { 
+            padding: 12px 5px; border: 2px solid #eee; border-radius: 8px; background: white;
+            cursor: pointer; font-weight: bold; font-size: 14px;
+        }
+        .staff-btn.active { border-color: var(--primary); background: #e7f1ff; color: var(--primary); transform: translateY(-2px); }
+
+        /* 打卡按鈕 */
+        .action-area { 
+            display: flex; gap: 10px; align-items: center; 
+            padding: 15px; background: #fff; border-radius: 12px;
+        }
+        .btn-clock { 
+            flex: 1; padding: 18px; border: none; border-radius: 10px; 
+            color: white; font-size: 1.1rem; font-weight: bold; cursor: pointer; opacity: 0.3; pointer-events: none;
+        }
+        .btn-clock.enabled { opacity: 1; pointer-events: auto; }
+        .btn-in { background: var(--success); }
+        .btn-out { background: var(--error); }
+
+        /* 打卡動態區 (靜態顯示最新操作) */
+        .log-section { flex: 1; background: white; border-radius: 12px; padding: 15px; overflow: hidden; display: flex; flex-direction: column; }
+        .log-list { flex: 1; overflow-y: auto; border-top: 1px solid #eee; margin-top: 10px; }
+        .log-item { display: flex; justify-content: space-between; padding: 10px 5px; border-bottom: 1px solid #f9f9f9; font-size: 14px; }
+        .tag { padding: 2px 6px; border-radius: 4px; font-size: 12px; color: white; margin-right: 5px; }
+
+        /* 隨機確認按鈕 */
+        #randomBtnOverlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 999; }
+        #realConfirmBtn { position: absolute; width: 110px; height: 110px; background: #ffc107; border: 4px solid #fff; border-radius: 50%; font-weight: bold; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h3 style="text-align:center; margin: 5px 0;">🏥 診所助理打卡系統</h3>
+    
+    <div id="staffGrid" class="staff-grid">名單載入中...</div>
+
+    <div class="action-area">
+        <div id="selectedDisplay" style="width:70px; font-weight:bold; color:var(--primary);">請選人</div>
+        <button id="btnIn" class="btn-clock btn-in" onclick="startClock('上班')">☀ 上班</button>
+        <button id="btnOut" class="btn-clock btn-out" onclick="startClock('下班')">🌙 下班</button>
+    </div>
+
+    <div class="log-section">
+        <div style="font-weight:bold; color:#666;">今日打卡紀錄 (本次開啟期間)</div>
+        <div id="logList" class="log-list"></div>
+    </div>
+</div>
+
+<div id="randomBtnOverlay">
+    <button id="realConfirmBtn">確認打卡</button>
+</div>
+
+<script>
+    let selectedEmp = null;
+    let pendingAction = "";
+    let localLogs = []; // 暫存打卡紀錄
+
+    $(document).ready(function() {
+        loadStaffList();
+    });
+
+    // 1. 利用現有的 getSalaryInitData 抓助理名單
+    async function loadStaffList() {
+        try {
+            const res = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({ action: "getSalaryInitData" })
+            });
+            const result = await res.json();
+            if (result.status === "success") {
+                // 篩選出 Role 為助理的人 (或根據您的 Role 名稱調整)
+                const assistants = result.employees.filter(e => e.role === "助理");
+                renderStaff(assistants);
+            }
+        } catch (e) { alert("無法取得名單"); }
+    }
+
+    function renderStaff(list) {
+        const html = list.map(s => `
+            <button class="staff-btn" onclick="selectStaff('${s.id}', '${s.name}', this)">
+                ${s.name}
+            </button>
+        `).join('');
+        $('#staffGrid').html(html);
+    }
+
+    function selectStaff(id, name, btn) {
+        selectedEmp = { id, name };
+        $('.staff-btn').removeClass('active');
+        $(btn).addClass('active');
+        $('#selectedDisplay').text(name);
+        $('.btn-clock').addClass('enabled');
+    }
+
+    // 2. 觸發隨機按鈕
+    function startClock(type) {
+        pendingAction = type;
+        const overlay = $('#randomBtnOverlay');
+        const btn = $('#realConfirmBtn');
+        overlay.show();
+        
+        const winW = $(window).width() - 120, winH = $(window).height() - 120;
+        btn.css({ left: Math.random() * winW + 20 + "px", top: Math.random() * winH + 20 + "px" });
+        btn.html(`${type}<br>${selectedEmp.name}<br>點我`);
+    }
+
+    // 3. 呼叫現有的 logAttendance 寫入資料
+    $('#realConfirmBtn').click(async function() {
+        $('#randomBtnOverlay').hide();
+        const emp = selectedEmp; 
+        const act = pendingAction;
+
+        try {
+            const res = await fetch(GAS_URL, {
+                method: "POST",
+                body: JSON.stringify({
+                    action: "logAttendance",
+                    empId: emp.id,
+                    type: act
+                })
+            });
+            const result = await res.json();
+            
+            if (result.status === "success") {
+                // 靜默更新：將成功紀錄加入前端列表
+                const newLog = { name: emp.name, type: act, time: result.time };
+                localLogs.unshift(newLog); // 倒序：放在最前面
+                renderLogs();
+                
+                // 重置選擇狀態
+                $('.staff-btn').removeClass('active');
+                $('.btn-clock').removeClass('enabled');
+                $('#selectedDisplay').text("請選人");
+                selectedEmp = null;
+            }
+        } catch (e) { alert("打卡失敗"); }
+    });
+
+    function renderLogs() {
+        const html = localLogs.map(l => `
+            <div class="log-item">
+                <span><b>${l.name}</b></span>
+                <span><span class="tag" style="background:${l.type==='上班'?'#28a745':'#dc3545'}">${l.type}</span></span>
+                <span style="color:#888;">${l.time}</span>
+            </div>
+        `).join('');
+        $('#logList').html(html);
+    }
+</script>
+</body>
+</html>

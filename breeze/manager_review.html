@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>審核申請 - 微風牙醫診所</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #5c6b73; --accent: #8ecae6; --success: #9dc88d;
+            --danger: #ef9a9a; --bg: #f8f9fa; --gray: #b0bec5;
+            --orange: #ffcc80; --teal: #80cbc4; --purple: #ce93d8;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            background: var(--bg); margin: 0;
+            display: flex; justify-content: center; align-items: flex-start;
+            min-height: 100vh; padding: 20px 0;
+        }
+
+        /* Loading */
+        #loadingOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.75); backdrop-filter: blur(3px);
+            z-index: 9999; display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+        }
+        .spinner {
+            width: 50px; height: 50px; border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--accent); border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+
+        .card {
+            background: white; padding: 1.5rem; border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            width: 95%; max-width: 480px;
+        }
+
+        /* Header */
+        .page-header {
+            display: flex; align-items: center; gap: 12px;
+            margin-bottom: 20px; padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .back-btn {
+            background: var(--bg); border: none; border-radius: 12px;
+            width: 38px; height: 38px; cursor: pointer; font-size: 1em;
+            color: var(--primary); display: flex; align-items: center; justify-content: center;
+            transition: 0.2s; flex-shrink: 0;
+        }
+        .back-btn:active { transform: scale(0.92); background: #eee; }
+        .page-title { font-size: 1.2em; font-weight: bold; color: var(--primary); margin: 0; }
+
+        /* Tab bar */
+        .tab-bar {
+            display: grid; grid-template-columns: 1fr 1fr;
+            background: #f5f5f5; border-radius: 14px; padding: 4px;
+            margin-bottom: 20px;
+        }
+        .tab-btn {
+            padding: 10px; border: none; border-radius: 11px; cursor: pointer;
+            font-size: 0.88em; font-weight: bold; transition: 0.2s;
+            color: #999; background: transparent;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+        .tab-btn.active { background: white; color: var(--primary); box-shadow: 0 2px 8px rgba(0,0,0,0.08); }
+        .tab-btn i { margin-right: 5px; }
+
+        /* Badge */
+        .tab-badge {
+            display: inline-block; background: var(--danger); color: white;
+            font-size: 0.72em; border-radius: 99px; padding: 1px 6px;
+            margin-left: 4px; vertical-align: middle; font-weight: bold;
+            min-width: 18px; text-align: center;
+        }
+
+        /* 空白佔位 */
+        .empty-hint {
+            text-align: center; color: #bbb;
+            padding: 40px 0; font-size: 0.9em;
+        }
+        .empty-hint i { font-size: 2em; display: block; margin-bottom: 10px; }
+
+        /* 申請卡片 */
+        .req-card {
+            border: 1.5px solid #f0f0f0; border-radius: 16px;
+            padding: 16px; margin-bottom: 14px;
+            transition: 0.2s;
+        }
+        .req-card:last-child { margin-bottom: 0; }
+
+        .req-header {
+            display: flex; justify-content: space-between; align-items: flex-start;
+            margin-bottom: 10px;
+        }
+        .req-person { font-weight: bold; color: var(--primary); font-size: 1em; }
+        .req-id { font-size: 0.78em; color: #aaa; margin-top: 2px; }
+        .req-time { font-size: 0.75em; color: #bbb; text-align: right; }
+
+        .req-body { font-size: 0.88em; color: #555; line-height: 1.7; margin-bottom: 12px; }
+        .req-body b { color: var(--primary); }
+
+        /* 審核按鈕區 */
+        .review-actions { display: flex; gap: 8px; }
+        .btn-approve {
+            flex: 1; padding: 11px; border: none; border-radius: 12px; cursor: pointer;
+            background: var(--success); color: #1b5e20;
+            font-size: 0.9em; font-weight: bold; transition: 0.2s;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+        .btn-approve:active { transform: scale(0.96); filter: brightness(0.95); }
+        .btn-reject {
+            flex: 1; padding: 11px; border: none; border-radius: 12px; cursor: pointer;
+            background: #fce4ec; color: #c62828;
+            font-size: 0.9em; font-weight: bold; transition: 0.2s;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+        .btn-reject:active { transform: scale(0.96); filter: brightness(0.95); }
+
+        /* 退回原因輸入 */
+        .reject-reason-area {
+            margin-top: 10px; animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(-4px); } to { opacity:1; transform:translateY(0); } }
+        .reject-textarea {
+            width: 100%; padding: 10px 12px; font-size: 0.88em;
+            border: 2px solid var(--danger); border-radius: 10px;
+            resize: none; color: var(--primary); outline: none;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            transition: 0.2s;
+        }
+        .reject-textarea:focus { border-color: #e57373; }
+        .btn-confirm-reject {
+            width: 100%; padding: 11px; border: none; border-radius: 11px; cursor: pointer;
+            background: var(--danger); color: #7f0000;
+            font-size: 0.9em; font-weight: bold; margin-top: 8px; transition: 0.2s;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+        .btn-confirm-reject:active { transform: scale(0.96); filter: brightness(0.95); }
+
+        /* 已處理狀態 */
+        .req-card.done {
+            opacity: 0.5; pointer-events: none; background: #fafafa;
+        }
+        .done-label {
+            display: inline-block; font-size: 0.8em; font-weight: bold;
+            padding: 3px 10px; border-radius: 99px; margin-left: 8px;
+        }
+        .done-approved { background: #e8f5e9; color: #2e7d32; }
+        .done-rejected { background: #fce4ec; color: #c62828; }
+
+        /* Toast */
+        #toast {
+            position: fixed; bottom: 30px; left: 50%; transform: translateX(-50%);
+            background: rgba(50,50,50,0.88); color: white; padding: 10px 22px;
+            border-radius: 99px; font-size: 0.9em; z-index: 9998;
+            transition: opacity 0.3s; white-space: nowrap;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loadingOverlay" class="hidden">
+    <div class="spinner"></div>
+    <p style="margin-top:15px; color:var(--primary); font-weight:bold;">載入中...</p>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<div class="card">
+
+    <!-- Header -->
+    <div class="page-header">
+        <button class="back-btn" onclick="goBack()"><i class="fa-solid fa-chevron-left"></i></button>
+        <h2 class="page-title">
+            <i class="fa-solid fa-clipboard-check" style="color:var(--accent); margin-right:6px;"></i>
+            審核申請
+        </h2>
+    </div>
+
+    <!-- Tab bar -->
+    <div class="tab-bar">
+        <button class="tab-btn active" id="tabLeave" onclick="switchTab('leave')">
+            <i class="fa-solid fa-umbrella-beach"></i> 請假
+            <span class="tab-badge hidden" id="leaveBadge">0</span>
+        </button>
+        <button class="tab-btn" id="tabBonus" onclick="switchTab('bonus')">
+            <i class="fa-solid fa-coins"></i> 加給
+            <span class="tab-badge hidden" id="bonusBadge">0</span>
+        </button>
+    </div>
+
+    <!-- 請假列表 -->
+    <div id="leaveList">
+        <div class="empty-hint">
+            <i class="fa-solid fa-hourglass-half"></i>
+            載入中...
+        </div>
+    </div>
+
+    <!-- 加給列表 -->
+    <div id="bonusList" class="hidden">
+        <div class="empty-hint">
+            <i class="fa-solid fa-hourglass-half"></i>
+            載入中...
+        </div>
+    </div>
+
+</div>
+
+<script>
+    let currentUser = null;
+    // pendingData 儲存從後端取回的原始資料
+    let pendingLeaves  = [];
+    let pendingBonuses = [];
+
+    // ── 初始化 ────────────────────────────────────────────
+    function initUser() {
+        const params = new URLSearchParams(window.location.search);
+        const empId  = params.get('empId') || '';
+        const name   = decodeURIComponent(params.get('name') || '');
+        const role   = params.get('role') || '';
+
+        // 也接受 sessionStorage
+        let savedRole = role;
+        if (!empId) {
+            const saved = sessionStorage.getItem('clinicUser');
+            if (saved) {
+                const u = JSON.parse(saved);
+                currentUser = u;
+            } else {
+                alert('請先登入系統');
+                window.location.href = 'index.html';
+                return;
+            }
+        } else {
+            currentUser = { empId, name, role };
+        }
+
+        savedRole = currentUser.role;
+        if (savedRole !== '主管' && savedRole !== 'Admin') {
+            alert('您沒有審核權限');
+            window.location.href = 'index.html';
+            return;
+        }
+
+        loadPending();
+    }
+
+    // ── 取得待審核資料 ─────────────────────────────────────
+    async function loadPending() {
+        toggleLoading(true);
+        try {
+            const resp = await fetch(GAS_URL, {
+                method: 'POST',
+                body: JSON.stringify({
+                    action: 'getPendingRequests',
+                    role:   currentUser.role
+                })
+            });
+            const res = await resp.json();
+            if (res.status !== 'success') {
+                showToast('❌ ' + (res.message || '載入失敗'));
+                return;
+            }
+            pendingLeaves  = res.data.leaves  || [];
+            pendingBonuses = res.data.bonuses || [];
+            renderLeaveList();
+            renderBonusList();
+            updateBadges();
+        } catch (e) {
+            showToast('❌ 連線失敗，請稍後再試');
+        } finally {
+            toggleLoading(false);
+        }
+    }
+
+    // ── 渲染請假列表 ───────────────────────────────────────
+    function renderLeaveList() {
+        const container = $('#leaveList').empty();
+        if (pendingLeaves.length === 0) {
+            container.html('<div class="empty-hint"><i class="fa-solid fa-check-circle"></i>目前沒有待審核的請假申請</div>');
+            return;
+        }
+        pendingLeaves.forEach((item, idx) => {
+            container.append(buildLeaveCard(item, idx));
+        });
+    }
+
+    function buildLeaveCard(item, idx) {
+        return `
+        <div class="req-card" id="lcard-${idx}">
+            <div class="req-header">
+                <div>
+                    <div class="req-person">${item.name}</div>
+                    <div class="req-id">工號：${item.empId}</div>
+                </div>
+                <div class="req-time">申請時間<br>${item.timestamp}</div>
+            </div>
+            <div class="req-body">
+                <b>日期</b>：${item.date}　<b>班別</b>：${item.shift}<br>
+                <b>假別</b>：${item.type}<br>
+                ${item.note ? `<b>備註</b>：${item.note}` : ''}
+            </div>
+            <div class="review-actions">
+                <button class="btn-approve" onclick="approveLeave(${idx})">
+                    <i class="fa-solid fa-check"></i> 核准
+                </button>
+                <button class="btn-reject" onclick="toggleRejectLeave(${idx})">
+                    <i class="fa-solid fa-xmark"></i> 退回
+                </button>
+            </div>
+            <div class="reject-reason-area hidden" id="lreject-${idx}">
+                <textarea class="reject-textarea" id="lreason-${idx}" rows="2" placeholder="請輸入退回原因（員工可看到）"></textarea>
+                <button class="btn-confirm-reject" onclick="rejectLeave(${idx})">
+                    <i class="fa-solid fa-paper-plane"></i> 確認退回
+                </button>
+            </div>
+        </div>`;
+    }
+
+    // ── 渲染加給列表 ───────────────────────────────────────
+    function renderBonusList() {
+        const container = $('#bonusList').empty();
+        if (pendingBonuses.length === 0) {
+            container.html('<div class="empty-hint"><i class="fa-solid fa-check-circle"></i>目前沒有待審核的加給申請</div>');
+            return;
+        }
+        pendingBonuses.forEach((item, idx) => {
+            container.append(buildBonusCard(item, idx));
+        });
+    }
+
+    function buildBonusCard(item, idx) {
+        return `
+        <div class="req-card" id="bcard-${idx}">
+            <div class="req-header">
+                <div>
+                    <div class="req-person">${item.name}</div>
+                    <div class="req-id">工號：${item.empId}</div>
+                </div>
+                <div class="req-time">申請時間<br>${item.timestamp}</div>
+            </div>
+            <div class="req-body">
+                <b>日期</b>：${item.date}<br>
+                <b>項目</b>：${item.type}<br>
+                <b>原因</b>：${item.reason}<br>
+                <b>金額</b>：$${Number(item.amount).toLocaleString()}
+            </div>
+            <div class="review-actions">
+                <button class="btn-approve" onclick="approveBonus(${idx})">
+                    <i class="fa-solid fa-check"></i> 核准
+                </button>
+                <button class="btn-reject" onclick="toggleRejectBonus(${idx})">
+                    <i class="fa-solid fa-xmark"></i> 退回
+                </button>
+            </div>
+            <div class="reject-reason-area hidden" id="breject-${idx}">
+                <textarea class="reject-textarea" id="breason-${idx}" rows="2" placeholder="請輸入退回原因（員工可看到）"></textarea>
+                <button class="btn-confirm-reject" onclick="rejectBonus(${idx})">
+                    <i class="fa-solid fa-paper-plane"></i> 確認退回
+                </button>
+            </div>
+        </div>`;
+    }
+
+    // ── Badge 計數 ─────────────────────────────────────────
+    function updateBadges() {
+        const lc = pendingLeaves.length;
+        const bc = pendingBonuses.length;
+        if (lc > 0) { $('#leaveBadge').text(lc).removeClass('hidden'); }
+        else         { $('#leaveBadge').addClass('hidden'); }
+        if (bc > 0) { $('#bonusBadge').text(bc).removeClass('hidden'); }
+        else         { $('#bonusBadge').addClass('hidden'); }
+    }
+
+    // ── Tab 切換 ───────────────────────────────────────────
+    function switchTab(tab) {
+        if (tab === 'leave') {
+            $('#leaveList').removeClass('hidden');
+            $('#bonusList').addClass('hidden');
+            $('#tabLeave').addClass('active');
+            $('#tabBonus').removeClass('active');
+        } else {
+            $('#leaveList').addClass('hidden');
+            $('#bonusList').removeClass('hidden');
+            $('#tabLeave').removeClass('active');
+            $('#tabBonus').addClass('active');
+        }
+    }
+
+    // ── 請假：核准 ─────────────────────────────────────────
+    async function approveLeave(idx) {
+        if (!confirm(`確定核准 ${pendingLeaves[idx].name} 的請假申請？`)) return;
+        await sendReview('reviewLeave', pendingLeaves[idx].rowIndex, '核准', '', 'lcard-' + idx, '核准', 'approved');
+        pendingLeaves.splice(idx, 1);
+        renderLeaveList();
+        updateBadges();
+    }
+
+    // ── 請假：展開退回輸入框 ────────────────────────────────
+    function toggleRejectLeave(idx) {
+        const area = $(`#lreject-${idx}`);
+        area.toggleClass('hidden');
+        if (!area.hasClass('hidden')) $(`#lreason-${idx}`).focus();
+    }
+
+    // ── 請假：確認退回 ─────────────────────────────────────
+    async function rejectLeave(idx) {
+        const reason = $(`#lreason-${idx}`).val().trim();
+        if (!reason) { showToast('❗ 請填寫退回原因'); return; }
+        await sendReview('reviewLeave', pendingLeaves[idx].rowIndex, '退回', reason, 'lcard-' + idx, '退回', 'rejected');
+        pendingLeaves.splice(idx, 1);
+        renderLeaveList();
+        updateBadges();
+    }
+
+    // ── 加給：核准 ─────────────────────────────────────────
+    async function approveBonus(idx) {
+        if (!confirm(`確定核准 ${pendingBonuses[idx].name} 的加給申請？`)) return;
+        await sendReview('reviewBonus', pendingBonuses[idx].rowIndex, '核准', '', 'bcard-' + idx, '核准', 'approved');
+        pendingBonuses.splice(idx, 1);
+        renderBonusList();
+        updateBadges();
+    }
+
+    // ── 加給：展開退回輸入框 ────────────────────────────────
+    function toggleRejectBonus(idx) {
+        const area = $(`#breject-${idx}`);
+        area.toggleClass('hidden');
+        if (!area.hasClass('hidden')) $(`#breason-${idx}`).focus();
+    }
+
+    // ── 加給：確認退回 ─────────────────────────────────────
+    async function rejectBonus(idx) {
+        const reason = $(`#breason-${idx}`).val().trim();
+        if (!reason) { showToast('❗ 請填寫退回原因'); return; }
+        await sendReview('reviewBonus', pendingBonuses[idx].rowIndex, '退回', reason, 'bcard-' + idx, '退回', 'rejected');
+        pendingBonuses.splice(idx, 1);
+        renderBonusList();
+        updateBadges();
+    }
+
+    // ── 共用：送出審核 API ─────────────────────────────────
+    async function sendReview(action, rowIndex, decision, reviewNote, cardId, labelText, labelClass) {
+        toggleLoading(true);
+        try {
+            const resp = await fetch(GAS_URL, {
+                method: 'POST',
+                body: JSON.stringify({
+                    action,
+                    role:       currentUser.role,
+                    rowIndex,
+                    decision,
+                    reviewNote
+                })
+            });
+            const res = await resp.json();
+            if (res.status === 'success') {
+                showToast(`✅ 已${decision}`);
+            } else {
+                showToast('❌ ' + (res.message || '操作失敗'));
+            }
+        } catch (e) {
+            showToast('❌ 連線失敗');
+        } finally {
+            toggleLoading(false);
+        }
+    }
+
+    // ── UI 工具 ────────────────────────────────────────────
+    function toggleLoading(show) {
+        if (show) $('#loadingOverlay').removeClass('hidden');
+        else      $('#loadingOverlay').addClass('hidden');
+    }
+
+    let toastTimer;
+    function showToast(msg) {
+        clearTimeout(toastTimer);
+        $('#toast').text(msg).removeClass('hidden');
+        toastTimer = setTimeout(() => $('#toast').addClass('hidden'), 2200);
+    }
+
+    function goBack() {
+        window.location.href = 'index.html';
+    }
+
+    // ── 啟動 ──────────────────────────────────────────────
+    $(document).ready(function () {
+        initUser();
+    });
+</script>
+</body>
+</html>

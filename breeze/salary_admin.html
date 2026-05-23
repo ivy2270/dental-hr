@@ -1,0 +1,999 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>助理薪資結算系統 - 主管端</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <script src="config.js"></script>
+    <style>
+        :root { --primary: #007bff; --success: #28a745; --danger: #dc3545; --warning: #ffc107; --light: #f8f9fa; --border: #dee2e6; --purple: #673ab7; --info: #3498db; }
+        body { font-family: "Microsoft JhengHei", sans-serif; background: #f4f6f9; padding: 20px; margin: 0; }
+        .container { max-width: 1100px; margin: auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; border-bottom: 2px solid var(--light); padding-bottom: 15px; }
+        .controls { display: flex; gap: 15px; align-items: flex-end; }
+        select, input { padding: 8px; border: 1px solid var(--border); border-radius: 4px; }
+        button { padding: 10px 20px; cursor: pointer; border: none; border-radius: 4px; background: var(--primary); color: white; font-weight: bold; transition: 0.3s; }
+        button:hover { opacity: 0.8; }
+        button:disabled { background: #ccc !important; cursor: not-allowed; }
+        
+        .confirm-status-bar { padding: 10px 15px; border-radius: 6px; margin-bottom: 15px; display: none; font-weight: bold; text-align: center; }
+        .status-confirmed { background: #e8f5e9; color: #2e7d32; border: 1px solid #c8e6c9; display: block; }
+
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin: 20px 0; }
+        .stat-card { background: var(--light); padding: 15px; border-radius: 8px; border-left: 5px solid var(--primary); }
+        .stat-card h3 { margin: 0; font-size: 12px; color: #666; }
+        .stat-card .value { font-size: 22px; font-weight: bold; margin-top: 5px; }
+        
+        .table-container { max-height: 350px; overflow-y: auto; border: 1px solid var(--border); border-radius: 4px; }
+        table { width: 100%; border-collapse: separate; border-spacing: 0; }
+        th { background-color: #f1f1f1; padding: 12px; text-align: left; position: sticky; top: 0; z-index: 20; border-bottom: 2px solid var(--border); }
+        td { padding: 8px 12px; border-bottom: 1px solid var(--border); font-size: 14px; background: white; }
+        
+        .adjustment-section { display: grid; grid-template-columns: 1fr 1fr; gap: 30px; margin-top: 10px; background: #fdfdfd; padding: 20px; border: 1px solid #ddd; border-radius: 8px; }
+        .net-pay-box { text-align: right; font-size: 28px; font-weight: bold; color: var(--danger); margin-top: 20px; }
+        
+        .btn-screenshot { background: var(--purple); margin-top: 10px; width: 100%; height: 50px; font-size: 18px; display: none; }
+
+        #loading { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.7); z-index: 999; justify-content: center; align-items: center; flex-direction: column; }
+        
+        .status-badge { padding: 3px 8px; border-radius: 4px; font-size: 12px; font-weight: bold; }
+        .bg-success { background: #d4edda; color: #155724; }
+        .bg-danger { background: #f8d7da; color: #721c24; }
+        .bg-warning { background: #fff3cd; color: #856404; }
+        .edit-min { width: 60px; text-align: center; padding: 4px; border: 1px solid #ddd; border-radius: 4px; }
+        .dynamic-row { display: grid; grid-template-columns: 120px 100px 1fr 40px; gap: 8px; margin-bottom: 8px; }
+
+        /* 隱藏的截圖專用容器 */
+        #hiddenCaptureContainer { position: absolute; left: -9999px; top: 0; }
+        #hiddenAssistantView { width: 800px; background: white; padding: 40px; color: #333; line-height: 1.5; font-family: "Microsoft JhengHei"; }
+    
+	.header button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    white-space: nowrap;
+}
+	</style>
+</head>
+<body>
+
+<div id="loading"><b>數據處理中...</b><p id="loadingMsg" style="margin-top:10px; color:var(--primary); font-weight:bold;"></p></div>
+
+<div class="container" id="mainCaptureArea">
+    <div class="header">
+        <div style="display: flex; align-items: center; gap: 15px;">
+        <button onclick="goBackMenu()" style="background: #6c757d; padding: 5px 12px; font-size: 14px;">🏠 返回主選單</button>
+        <h2>助理薪資結算系統 <small style="font-size: 14px; color: #666;">(主管結算介面)</small></h2>
+    </div>
+        <div class="controls">
+            月份 <input type="month" id="yearMonth" value="2026-02">
+            助理 <select id="empSelector"><option value="">載入中...</option></select>
+            <button onclick="fetchPreview()" id="btnFetch">產生報表</button>
+        </div>
+    </div>
+
+    <div id="confirmStatusBar" class="confirm-status-bar"></div>
+
+    <div id="resultArea" style="display:none;">
+        <div id="savedAtNotice" style="display:none; background:#fff8e1; border:1px solid #ffe082; border-left:4px solid #f9a825; border-radius:6px; padding:10px 15px; margin-bottom:15px; font-size:13px; color:#5d4037;"></div>
+        <div class="stats-grid">
+            <div class="stat-card"><h3>員工類型</h3><div class="value" id="statEmpType">-</div></div>
+            <div class="stat-card"><h3>實際出勤診數</h3><div class="value" id="statShifts">0</div></div>
+            <div class="stat-card"><h3>累積遲到(分)</h3><div class="value" id="statLate">0</div></div>
+            <div class="stat-card"><h3>累積加班(分)</h3><div class="value" id="statOT">0</div></div>
+            <div class="stat-card" style="border-left-color: #ffc107;"><h3>剩餘特休天數</h3><div class="value" id="statAL">0</div></div>
+            <div class="stat-card" style="border-left-color: #e91e63;"><h3>本月應出勤診數</h3><div class="value" id="statReqShifts">-</div></div>
+            <div class="stat-card" style="border-left-color: #ef5350;"><h3>年度病假(診)</h3><div class="value" id="statAnnualSick">0</div></div>
+            <div class="stat-card" style="border-left-color: #ab47bc;"><h3>年度生理假(診)</h3><div class="value" id="statAnnualMenstrual">0</div></div>
+            <div class="stat-card" style="border-left-color: #ff7043;"><h3>年度事假(診)</h3><div class="value" id="statAnnualPersonal">0</div></div>
+        </div>
+
+        <div class="table-container">
+            <table>
+                <thead>
+                    <tr><th>日期</th><th>診次</th><th>狀態</th><th>打卡時間</th><th>遲到(分)</th><th>加班(分)</th><th>備註/調整</th></tr>
+                </thead>
+                <tbody id="detailsTbody"></tbody>
+            </table>
+        </div>
+
+        <div id="drBonusStatsArea" style="margin-top: 20px; padding: 15px; background: #e0f7fa; border: 1px solid #b2ebf2; border-radius: 8px; display: none;">
+            <h4 style="margin:0 0 4px 0;">醫師獎金</h4>
+            <p style="font-size:12px; color:#666; margin:0 0 12px 0;">依實際打卡診次統計，請輸入每位醫師的單診金額後自動計算（含入實領總額）</p>
+            <div id="drBonusList" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;"></div>
+        </div>
+
+        <div class="adjustment-section">
+            <div>
+                <h4>應領項目 (+)</h4>
+                <div id="fixedBonusArea"></div>
+                <button id="btnAddBonus" onclick="addDynamicRow('addArea', 'plus')" style="background:var(--success); font-size:12px; padding:5px 10px; border-radius:4px;">+ 增加獎金項目</button>
+                <div id="addArea" style="margin-top:10px;"></div>
+            </div>
+            <div>
+                <h4>扣款項目 (-)</h4>
+                <div id="leaveInfoArea" style="display:none; background:#fff8e1; border:1px solid #ffe082; border-radius:6px; padding:8px 12px; margin-bottom:12px; font-size:13px; color:#5d4037;"></div>
+                勞保扣款 <input type="number" id="deductLabor" class="calc-minus" style="width:100px" oninput="calcNet()"><br><br>
+                健保扣款 <input type="number" id="deductHealth" class="calc-minus" style="width:100px" oninput="calcNet()"><br><br>
+                健保眷屬扣款 <input type="number" id="deductHealthFamily" class="calc-minus" style="width:100px" oninput="calcNet()"><br><br>
+                遲到扣款 <small style="color:#888">（底薪比例，手動輸入）</small><br><input type="number" id="deductLate" class="calc-minus" style="width:100px" oninput="calcNet()"><br><br>
+                病假扣薪 <small style="color:#888">（自動計算，可調整）</small><br><input type="number" id="deductSick" class="calc-minus" style="width:100px" oninput="calcNet()"><br><br>
+                病假全勤扣款 <small style="color:#888">（2600÷應出勤診×病假診，可調整）</small><br><input type="number" id="deductSickAttend" class="calc-minus" style="width:100px" oninput="calcNet()"><br><br>
+                事假扣薪 <small style="color:#888">（自動計算，可調整）</small><br><input type="number" id="deductPersonal" class="calc-minus" style="width:100px" oninput="calcNet()"><br><br>
+                生理假扣薪 <small style="color:#888">（自動計算：前3天/年半薪，超額併病假；不扣全勤）</small><br><input type="number" id="deductMenstrual" class="calc-minus" style="width:100px" oninput="calcNet()"><br><br>
+                <button id="btnAddDeduct" onclick="addDynamicRow('subArea', 'minus')" style="background:var(--danger); font-size:12px; padding:5px 10px; border-radius:4px;">+ 增加扣款項目</button>
+                <div id="subArea" style="margin-top:10px;"></div>
+                
+                <div class="net-pay-box">實領總額：NT$ <span id="netPayValue">0</span></div>
+                
+                <div style="margin-top:20px;">
+                    <h4>結算備註</h4>
+                    <textarea id="settleMemo" style="width:100%; height:60px; padding:10px; border:1px solid #ddd; border-radius:4px; resize:none;"></textarea>
+                    <button id="saveBtn" onclick="saveSalaryFinal()" style="width:100%; height:50px; background:var(--primary); font-size:18px; margin-top:10px;">確認結算並儲存</button>
+                    <button id="screenshotBtn" class="btn-screenshot" onclick="takeScreenshot()">📸 產生正式薪資單並自動上傳</button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="hiddenCaptureContainer">
+    <div id="hiddenAssistantView">
+        <h2 style="text-align: center; color: #2c3e50; border-bottom: 2px solid #2c3e50; padding-bottom: 10px;">薪資核對明細 (正式存檔)</h2>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; background: #f9f9f9; padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+            <div><label style="color: #666; font-size: 0.9em;">月份：</label><span id="ssYM" style="font-weight:bold;"></span></div>
+            <div><label style="color: #666; font-size: 0.9em;">姓名：</label><span id="ssName" style="font-weight:bold;"></span></div>
+        </div>
+        <div style="background: #e8f5e9; border: 1px solid #27ae60; padding: 15px; text-align: center; margin-bottom: 20px; border-radius: 8px;">
+            <div style="color: #666; font-size: 0.9em;">實領總額</div>
+            <div style="font-size: 2.2em; font-weight: bold; color: #27ae60;">NT$ <span id="ssNetPay"></span></div>
+        </div>
+        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 20px;">
+            <div style="border: 1px solid #eee; border-radius: 8px; padding: 10px;">
+                <h4 style="margin: 0 0 10px 0; color: #27ae60; border-bottom: 1px solid #eee;">應領項目</h4>
+                <div id="ssPlusArea"></div>
+            </div>
+            <div style="border: 1px solid #eee; border-radius: 8px; padding: 10px;">
+                <h4 style="margin: 0 0 10px 0; color: #e74c3c; border-bottom: 1px solid #eee;">扣款項目</h4>
+                <div id="ssMinusArea"></div>
+            </div>
+        </div>
+        <h4 style="border-left: 5px solid #3498db; padding-left: 10px;">出勤明細</h4>
+        <div style="display: flex; gap: 15px; margin-bottom: 10px; font-size: 0.85em; background: #f0f7ff; padding: 10px; border-radius: 5px;">
+            <span>累積遲到：<b id="ssLate"></b> 分</span>
+            <span>累積加班：<b id="ssOT"></b> 分</span>
+            <span>剩餘特休：<b id="ssAL"></b> 天</span>
+        </div>
+        <table style="width: 100%; border-collapse: collapse; font-size: 12px; margin-bottom: 15px;">
+            <thead style="background: #34495e; color: white;">
+                <tr><th style="padding: 6px;">日期/診次</th><th style="padding: 6px;">打卡時間</th><th style="padding: 6px;">狀態</th><th style="padding: 6px;">備註</th></tr>
+            </thead>
+            <tbody id="ssTableBody"></tbody>
+        </table>
+        <div id="ssMemoBlock" style="padding: 10px; background: #fff9db; border: 1px solid #ffe066; border-radius: 5px; font-size: 0.85em;">
+            <strong>結算備註：</strong> <span id="ssTotalMemo"></span>
+        </div>
+        <div style="margin-top: 15px; text-align: right; font-size: 10px; color: #999;">系統產出時間：<span id="ssGenTime"></span></div>
+    </div>
+</div>
+
+<script>
+let allEmps = [];
+let bonusCols = [];
+let currentUser = null; // 新增：儲存當前操作主管資訊
+
+window.onload = async () => {
+    // --- 1. 權限與登入驗證 (新增的部分) ---
+    const urlParams = new URLSearchParams(window.location.search);
+    const loginEmpId = urlParams.get('empId'); // 登入者的 ID
+    const loginName = urlParams.get('name');   // 登入者的姓名
+    const loginRole = urlParams.get('role');   // 登入者的角色
+
+    // 安全檢查：若非主管/Admin 則退回主選單
+    if (!loginEmpId || (loginRole !== "主管" && loginRole !== "Admin")) {
+        alert("權限不足，請由正規管理入口登入");
+        window.location.href = "index.html"; // 假設您的首頁是 index.html
+        return;
+    }
+    
+    // 儲存目前主管資訊
+    currentUser = { id: loginEmpId, name: loginName, role: loginRole };
+
+    // 在標題旁邊顯示操作者 (優化體驗)
+    const headerTitle = document.querySelector('.header h2');
+    if(headerTitle) {
+        headerTitle.innerHTML += ` <span style="font-size:12px; color:var(--primary); font-weight:normal;">[操作者: ${loginName}]</span>`;
+    }
+
+    // --- 2. 原本的初始化邏輯 (開始執行) ---
+    // 預設月份：上個月（五月開啟 → 預設四月）
+    const now = new Date();
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    document.getElementById('yearMonth').value =
+        `${lastMonth.getFullYear()}-${String(lastMonth.getMonth() + 1).padStart(2, '0')}`;
+    try {
+        const r = await fetch(GAS_URL, { 
+            method: 'POST', 
+            body: JSON.stringify({ action: "getSalaryInitData" }) 
+        });
+        const res = await r.json();
+        if (res.status !== "success") throw new Error(res.message || "getSalaryInitData 回傳非 success");
+        allEmps = res.employees || [];
+        bonusCols = res.bonusColumns || [];
+        document.getElementById('empSelector').innerHTML = '<option value="">請選擇助理...</option>' + 
+            allEmps.map(e => `<option value="${e.id}">${e.name} (${e.id})</option>`).join('');
+    } catch(e) { 
+        console.error("初始化失敗:", e); 
+        alert("系統連線失敗，請重新整理頁面\n\n錯誤：" + e.message);
+    }
+};
+
+// 返回主選單並帶上原有參數
+function goBackMenu() {
+    const urlParams = new URLSearchParams(window.location.search);
+    const empId = urlParams.get('empId');
+    const name = urlParams.get('name');
+    const role = urlParams.get('role');
+    
+    // 導向主選單 (請確保主選單檔名為 main_menu.html 或 index.html)
+    // 並把參數重新帶回去，這樣主選單才能辨識身分
+    window.location.href = `index.html?empId=${empId}&name=${encodeURIComponent(name)}&role=${encodeURIComponent(role)}`;
+}
+
+async function fetchPreview() {
+    const ym = document.getElementById('yearMonth').value;
+    const eid = document.getElementById('empSelector').value;
+    if(!eid) return alert("請選擇助理");
+    
+    document.getElementById('loading').style.display = 'flex';
+    resetUI();
+    
+    try {
+        const r = await fetch(GAS_URL, { method: 'POST', body: JSON.stringify({ action: "getSalaryPreview", yearMonth: ym, empId: eid }) });
+        const res = await r.json();
+        if(res.status === "success") {
+            render(res.data[0]);
+            checkConfirmStatus(res.data[0].confirmStatus);
+        } else {
+            alert("載入失敗：" + res.message);
+        }
+    } catch(e) { alert("連線錯誤"); }
+    document.getElementById('loading').style.display = 'none';
+}
+
+function checkConfirmStatus(status) {
+    const isConfirmed = (status === "已確認");
+    const statusBar = document.getElementById('confirmStatusBar');
+    const saveBtn = document.getElementById('saveBtn');
+    const screenshotBtn = document.getElementById('screenshotBtn');
+    
+    if (isConfirmed) {
+        statusBar.innerText = "✅ 助理已完成核對 (資料鎖定中)";
+        statusBar.className = "confirm-status-bar status-confirmed";
+        saveBtn.style.display = "none";
+        screenshotBtn.style.display = "block";
+        screenshotBtn.disabled = false;
+        screenshotBtn.innerText = "📸 產生正式薪資單並自動上傳";
+        screenshotBtn.style.background = ""; // 恢復紫色
+        lockInputs(true);
+    } else {
+        statusBar.style.display = "none";
+        saveBtn.style.display = "block";
+        screenshotBtn.style.display = "none";
+        lockInputs(false);
+    }
+}
+
+function lockInputs(shouldLock) {
+    const elements = document.querySelectorAll('#resultArea input, #resultArea textarea, #resultArea button:not(#screenshotBtn)');
+    elements.forEach(el => el.disabled = shouldLock);
+}
+
+function resetUI() {
+    document.getElementById('addArea').innerHTML = '';
+    document.getElementById('subArea').innerHTML = '';
+    document.getElementById('fixedBonusArea').innerHTML = '';
+    document.getElementById('resultArea').style.display = 'none';
+}
+
+function render(data) {
+    document.getElementById('resultArea').style.display = 'block';
+    document.getElementById('statAL').innerText = data.remainingAL || 0;
+    document.getElementById('statShifts').innerText = data.details.filter(r => !r.status.includes('請假') && !r.status.includes('缺') && r.status !== '無排班打卡').length;
+    document.getElementById('statEmpType').innerText = data.empType || '-';
+
+    // ── 已儲存提示 ────────────────────────────────────────────
+    const savedAt = data.savedDetails?.savedAt || '';
+    const savedNotice = document.getElementById('savedAtNotice');
+    if (savedAt) {
+        savedNotice.style.display = 'block';
+        savedNotice.innerHTML = `📋 此月份已於 <b>${savedAt}</b> 儲存過，以下欄位已載入上次結算數值，可重新修改後再次儲存。`;
+    } else {
+        savedNotice.style.display = 'none';
+    }
+
+    const bs = data.bonusStats || {};
+    const isFullTime = data.empType === '正職';
+
+    // ── 統計卡片 ──────────────────────────────────────────────
+    // 加給統計僅用於下方計算欄位，不在上方顯示
+    const reqShifts = bs.requiredShifts ?? (isFullTime ? 42 : 22);
+    const holidayDeductNote = bs.holidayCount
+        ? `（扣除 ${bs.holidayCount} 天國假）` : '';
+    const reqShiftsEl = document.getElementById('statReqShifts');
+    reqShiftsEl.innerText = `${reqShifts}${holidayDeductNote}`;
+    reqShiftsEl.dataset.req = reqShifts; // 純數字，供 recalcLateAndAttend 讀取
+
+    // ── 年度請假統計卡片 ──────────────────────────────────────
+    const al = data.annualLeave || {};
+    document.getElementById('statAnnualSick').innerText      = al.sickShifts       || 0;
+    document.getElementById('statAnnualMenstrual').innerText = al.menstrualShifts   || 0;
+    document.getElementById('statAnnualPersonal').innerText  = al.personalShifts    || 0;
+
+    // ── 出勤明細表格 ──────────────────────────────────────────
+    const dayNames = ['日','一','二','三','四','五','六'];
+    // 依日期分組，決定交替背景色（偶數日期白色、奇數日期淡藍灰）
+    const dateList = [...new Set(data.details.map(r => r.date))];
+    const dayBgColors = ['#ffffff', '#eef2f7'];
+    document.getElementById('detailsTbody').innerHTML = data.details.map(row => {
+        const st = row.status;
+        let cls = st.includes('早退') || st.includes('請假') ? 'bg-warning'
+                : st.includes('缺') ? 'bg-danger'
+                : st === '遲到' ? 'bg-warning'
+                : st === '無排班打卡' ? 'bg-danger'
+                : 'bg-success';
+        // 遲到時在 badge 顯示分鐘數
+        const badgeText = st === '遲到' && row.late > 0 ? `遲到 ${row.late} 分鐘` : st;
+        // 無排班打卡列，輸入欄 disable（不納入計算）
+        const isUnscheduled = st === '無排班打卡';
+        // 無排班打卡保留橘色警示，其餘依日期順序交替底色
+        const dateIdx = dateList.indexOf(row.date);
+        const dayBg = isUnscheduled ? '#fff3e0' : dayBgColors[dateIdx % 2];
+        const dayIdx = new Date(row.date).getDay();
+        return `<tr data-date="${row.date}" data-shift="${row.shift}" style="background:${dayBg};">
+            <td style="background:inherit;">${row.date.split('-')[2]}日（${dayNames[dayIdx]}）</td>
+            <td style="background:inherit;">${row.shift}</td>
+            <td style="background:inherit;"><span class="status-badge ${cls}">${badgeText}</span></td>
+            <td style="background:inherit;">${row.actualIn}~${row.actualOut}</td>
+            <td style="background:inherit;"><input type="number" class="edit-min late-val" value="${row.late}" oninput="syncMinutes()" ${isUnscheduled ? 'disabled style="background:#f5f5f5; width:60px;"' : ''}></td>
+            <td style="background:inherit;"><input type="number" class="edit-min ot-val"  value="${row.ot}"   oninput="syncMinutes()" ${isUnscheduled ? 'disabled style="background:#f5f5f5; width:60px;"' : ''}></td>
+            <td style="background:inherit;"><input type="text" class="edit-memo" value="${row.historyMemo || ''}" style="width:120px; padding:4px;" ${isUnscheduled ? 'placeholder="請確認班表"' : ''}></td></tr>`;
+    }).join('');
+
+    const padId = id => String(id || '').padStart(3, '0');
+    const emp   = allEmps.find(e => padId(e.id) === padId(data.empId)) || {};
+    const saved = data.savedDetails;
+
+    // ── 自動計算各加給金額（以統計數字為基礎）────────────────
+    // 注意：這些只在「沒有已儲存記錄」時自動帶入；有儲存記錄則從 saved.additions 取回
+    const autoThreePay   = isFullTime ? (bs.threeShifts   || 0) * 200 : 0;
+    const autoNightPay   = isFullTime ? (bs.nightShifts   || 0) * 200 : 0;
+    const autoSatPay     = isFullTime ? (bs.satShifts     || 0) * 200 : 0;
+    const autoHolidayPay = isFullTime ? (bs.holidayShifts || 0) * 200 : 0;
+
+    // ── 遲到判斷（月累積 > 15 分鐘則扣全勤）────────────────────
+    const totalLate = data.monthTotalLate || 0;
+    const lateDisqualify = totalLate > 15;
+
+    // ── 請假扣薪計算 ───────────────────────────────────────────
+    // 計算基準統一改為「底薪 ÷ 42診 = 每診底薪」
+    // 病假：每診底薪 × 0.5（給半薪）+ 全勤按比例扣（2600 ÷ 應出勤診數 × 病假診數）
+    // 事假：每診底薪（全扣）+ 全勤不達標
+    // 生理假：每月限1天；年度前3天(6診)半薪且不扣全勤；超額併入病假（半薪）；
+    //         若病假60診額度用盡則無薪；整年生理假皆不扣全勤
+    const ls = data.leaveSummary || {};
+    const sickShifts      = ls['病假']  || 0;
+    const personalShifts  = ls['事假']  || 0;
+    const menstrualShifts = ls['生理假'] || 0;
+
+    const basePayForCalc = saved ? (saved.basePay || 0) : (emp.basePay || 0);
+    const perShiftPay = basePayForCalc / 42;
+    const reqShiftsForLeave = bs.requiredShifts ?? (isFullTime ? 42 : 22);
+
+    // ── 生理假扣薪細算 ─────────────────────────────────────────
+    const annualMen  = (data.annualLeave || {}).menstrualShifts || 0;
+    const annualSick = (data.annualLeave || {}).sickShifts      || 0;
+    const MEN_FREE   = 6;   // 3天=6診 半薪額度
+    const SICK_QUOTA = 60;  // 病假上限60診
+    const menBeforeThisMonth = annualMen - menstrualShifts;
+    let menHalf = 0, menSick = 0, menUnpaid = 0;
+    for (let i = 0; i < menstrualShifts; i++) {
+        const cumIdx = menBeforeThisMonth + i;
+        if (cumIdx < MEN_FREE) {
+            menHalf++;
+        } else {
+            const sickUsed = annualSick + menSick;
+            if (sickUsed < SICK_QUOTA) { menSick++; } else { menUnpaid++; }
+        }
+    }
+    const autoMenstrualDeduct = Math.round(
+        (menHalf + menSick) * perShiftPay * 0.5 + menUnpaid * perShiftPay
+    );
+
+    // 病假扣底薪：診數 × 每診底薪 × 0.5
+    const autoSickDeduct     = Math.round(sickShifts    * perShiftPay * 0.5);
+    // 事假扣底薪：診數 × 每診底薪（全薪）
+    const autoPersonalDeduct = Math.round(personalShifts * perShiftPay);
+    // 病假全勤比例扣款（生理假不列入）
+    const autoSickAttendDeduct = (sickShifts > 0 && reqShiftsForLeave > 0)
+        ? Math.round((2600 / reqShiftsForLeave) * sickShifts)
+        : 0;
+
+    // ── 全勤判斷 ───────────────────────────────────────────────
+    const actualShifts = data.details.filter(r => !r.status.includes('請假') && !r.status.includes('缺')).length;
+    // 生理假不影響全勤，事假才扣全勤
+    const hasPersonalLeave = personalShifts > 0;
+    const attendQualify = !lateDisqualify && !hasPersonalLeave && actualShifts >= reqShifts;
+
+    let autoAttendPay = 0;
+    if (attendQualify) {
+        if (isFullTime) {
+            autoAttendPay = 2600;
+        } else {
+            // 兼職：超過應出勤診數才有，每診50元
+            autoAttendPay = actualShifts > reqShifts ? actualShifts * 50 : 0;
+        }
+    }
+
+    // 全勤不達標原因提示
+    const attendWarnParts = [];
+    if (lateDisqualify)      attendWarnParts.push(`遲到 ${totalLate} 分鐘`);
+    if (hasPersonalLeave)    attendWarnParts.push(`事假 ${personalShifts} 診`);
+    if (actualShifts < reqShifts && !lateDisqualify && !hasPersonalLeave)
+                             attendWarnParts.push(`出勤不足（${actualShifts}/${reqShifts}診）`);
+    const attendWarn = attendWarnParts.length > 0
+        ? `<span style="color:red; font-weight:bold;">⚠ 不符合（${attendWarnParts.join('、')}）</span>`
+        : `<span style="color:green;">✓ 符合</span>`;
+
+    // helper：從 saved.additions 找回某個名稱的金額
+    const savedAddVal = (name) => {
+        if (!saved?.additions) return null;
+        const m = saved.additions.find(a => a.name === name);
+        return m ? m.val : null;
+    };
+
+    // ── 應領固定欄位 HTML ─────────────────────────────────────
+    let fixedHtml = '';
+
+    // 底薪
+    const basePayVal = saved ? saved.basePay : (emp.basePay || 0);
+    fixedHtml += fieldRow('底薪', 'basePay', basePayVal, 'data-label="底薪"');
+
+    // 加班費（由 syncMinutes 自動計算，也可手調）
+    fixedHtml += fieldRow('加班費', 'otPay', saved ? saved.otPay : 0, 'data-label="加班費"');
+
+    // 全勤
+    const attendVal = savedAddVal('全勤') ?? autoAttendPay;
+    const attendHint = isFullTime
+        ? `需 ${reqShifts} 診，實際 ${actualShifts} 診 ${attendWarn}`
+        : `需 >22 診，實際 ${actualShifts} 診 ${attendWarn}`;
+    fixedHtml += fieldRow(`全勤 <small style="color:#888">${attendHint}</small>`,
+        'bonusAttend', attendVal, 'data-label="全勤"');
+
+    // 三診獎金（僅正職）
+    // 每次開啟都重新以「天數×200」計算，確保金額正確（避免舊資料存錯天數導致1元問題）
+    if (isFullTime) {
+        const threeVal = autoThreePay; // 永遠以即時計算為準
+        fixedHtml += fieldRow(`三診獎金 <small style="color:#888">（${bs.threeShifts||0}天 × 200）</small>`,
+            'bonusThree', threeVal, 'data-label="三診獎金"');
+
+        // 午晚連班加給（正職）
+        const nightVal = autoNightPay; // 永遠以即時計算為準
+        fixedHtml += fieldRow(`午晚加給 <small style="color:#888">（${bs.nightShifts||0}天 × 200）</small>`,
+            'bonusNight', nightVal, 'data-label="午晚加給"');
+
+        // 週六加給（正職）
+        const satVal = autoSatPay; // 永遠以即時計算為準
+        fixedHtml += fieldRow(`週六加給 <small style="color:#888">（${bs.satShifts||0}診 × 200）</small>`,
+            'bonusSat', satVal, 'data-label="週六加給"');
+
+        // 國定假日加給（正職）
+        const holidayVal = autoHolidayPay; // 永遠以即時計算為準
+        fixedHtml += fieldRow(`國定假日加給 <small style="color:#888">（${bs.holidayShifts||0}診 × 200）</small>`,
+            'bonusHoliday', holidayVal, 'data-label="國定假日加給"');
+
+        // 超診獎金（正職：實際出勤 > 應出勤診數時，每超一診給「底薪÷42 + 200」）
+        const overShifts = bs.overShifts || 0;
+        const perShiftForOver = Math.round(basePayForCalc / 42);
+        const autoOverPay = overShifts * (perShiftForOver + 200);
+        const savedOverVal = savedAddVal('超診獎金');
+        const overVal = savedOverVal !== null ? savedOverVal : autoOverPay;
+        fixedHtml += fieldRow(
+            `超診獎金 <small style="color:#888">（${overShifts}診 × [底薪÷42=$${perShiftForOver} + 200]）</small>`,
+            'bonusOver', overVal, 'data-label="超診獎金"'
+        );
+    }
+
+    // Employee_Master 動態獎金欄（排除業績獎金比例欄，已另行處理）
+    bonusCols.forEach(col => {
+        let val = emp.dynamicBonuses ? (emp.dynamicBonuses[col] || 0) : 0;
+        const sv = savedAddVal(col);
+        if (sv !== null) val = sv;
+        fixedHtml += fieldRow(col, 'dynBonus_' + col, val, `data-label="${col}"`);
+    });
+
+    // ── 業績獎金（比例 × 當月業績）────────────────────────────
+    // emp.revenueRate：個人比例（如 0.001 = 0.1%）；0 表示無此項
+    // data.monthRevenue：當月總業績（null 表示尚未填入 Revenue_Monthly）
+    if (emp.revenueRate > 0) {
+        const revenueRate    = emp.revenueRate;
+        const monthRevenue   = data.monthRevenue;   // null | number
+        const savedRevBonus  = savedAddVal('業績獎金');
+
+        let revBonusVal = 0;
+        let revHint     = '';
+
+        const actualAttendShifts = bs.actualAttendShifts ?? actualShifts;
+        // 比例顯示：用 toPrecision 去除多餘尾零（如 0.000065 → 顯示 0.0065%）
+        const rateDisplay = parseFloat((revenueRate * 100).toPrecision(4)) + '%';
+        if (savedRevBonus !== null && savedRevBonus > 0) {
+            // 已儲存且有值：直接還原金額，hint 顯示計算依據
+            revBonusVal = savedRevBonus;
+            revHint = monthRevenue !== null
+                ? `比例 ${rateDisplay} × $${monthRevenue.toLocaleString()} × ${actualAttendShifts}診`
+                : `比例 ${rateDisplay}（業績未填入）× ${actualAttendShifts}診`;
+        } else if (monthRevenue !== null) {
+            // 自動計算：比例 × 業績 × 實際出勤診數
+            revBonusVal = Math.round(monthRevenue * revenueRate * actualAttendShifts);
+            revHint = `${rateDisplay} × $${monthRevenue.toLocaleString()} × ${actualAttendShifts}診 = $${revBonusVal.toLocaleString()}`;
+        } else {
+            revBonusVal = 0;
+            revHint = `<span style="color:orange;">⚠ Revenue_Monthly 尚未填入本月業績，請手動輸入或先至年度總表填入</span>（實際出勤 ${actualAttendShifts} 診）`;
+        }
+
+        fixedHtml += fieldRow(
+            `業績獎金 <small style="color:#888">${revHint}</small>`,
+            'bonusRevenue', revBonusVal, 'data-label="業績獎金"'
+        );
+    }
+
+    document.getElementById('fixedBonusArea').innerHTML = fixedHtml;
+
+    // ── 醫師獎金區塊（有打卡診的醫師才顯示）────────────────────
+    const drArea = document.getElementById('drBonusStatsArea');
+    const drList = document.getElementById('drBonusList');
+    if (bs.drBonus && Object.keys(bs.drBonus).length > 0) {
+        drArea.style.display = 'block';
+        drList.innerHTML = Object.entries(bs.drBonus).map(([dr, count]) => {
+            const savedDr = savedAddVal('醫師獎金_' + dr);
+            const unitVal = savedDr !== null ? Math.round(savedDr / count) : 0;
+            return `<div style="background:white; padding:10px; border-radius:6px; box-shadow:1px 1px 3px rgba(0,0,0,0.1);">
+                <div style="font-weight:bold; margin-bottom:6px;">${dr}</div>
+                <div style="font-size:12px; color:#666; margin-bottom:6px;">跟診 ${count} 診</div>
+                <div style="display:flex; align-items:center; gap:6px; font-size:13px;">
+                    每診 <input type="number" class="dr-unit-input" data-dr="${dr}" data-count="${count}"
+                        value="${unitVal}" min="0" style="width:70px; padding:4px; border:1px solid #ddd; border-radius:4px;"
+                        oninput="calcDrBonus(this)"> 元
+                    <span style="color:#27ae60; font-weight:bold;">= <span class="dr-subtotal" data-dr="${dr}">$${(unitVal*count).toLocaleString()}</span></span>
+                </div>
+            </div>`;
+        }).join('');
+    } else {
+        drArea.style.display = 'none';
+    }
+
+    // ── 扣款欄位代入 ─────────────────────────────────────────
+    document.getElementById('deductLabor').value        = saved ? saved.labor        : (emp.insLabor  || 0);
+    // 勞保無眷屬項目，已移除
+    document.getElementById('deductHealth').value       = saved ? saved.health       : (emp.insHealth || 0);
+    document.getElementById('deductHealthFamily').value  = saved ? saved.healthFamily : (emp.insHealthFamily || 0);
+    document.getElementById('deductLate').value          = saved ? saved.lateDeduct   : 0;
+
+    // ── 請假扣款自動帶入（有儲存記錄則從 deductions 讀回）──────
+    const savedSickDeduct       = saved?.deductions?.find(d => d.name === '病假扣薪');
+    const savedSickAttendDeduct = saved?.deductions?.find(d => d.name === '病假全勤扣款');
+    const savedPersonalDeduct   = saved?.deductions?.find(d => d.name === '事假扣薪');
+    document.getElementById('deductSick').value        = savedSickDeduct       ? savedSickDeduct.val       : autoSickDeduct;
+    document.getElementById('deductSickAttend').value  = savedSickAttendDeduct ? savedSickAttendDeduct.val : autoSickAttendDeduct;
+    document.getElementById('deductPersonal').value    = savedPersonalDeduct   ? savedPersonalDeduct.val   : autoPersonalDeduct;
+    document.getElementById('deductPersonal').dataset.shifts = personalShifts; // 供 recalcLateAndAttend 使用
+
+    const savedMenstrualDeduct = saved?.deductions?.find(d => d.name === '生理假扣薪');
+    document.getElementById('deductMenstrual').value = savedMenstrualDeduct ? savedMenstrualDeduct.val : autoMenstrualDeduct;
+
+    // 請假明細區塊
+    const leaveInfoDiv = document.getElementById('leaveInfoArea');
+    const leaveLines = [];
+    if (sickShifts > 0) {
+        const perShiftDisplay = Math.round(perShiftPay);
+        leaveLines.push(
+            `病假 ${sickShifts} 診 → 底薪扣 $${autoSickDeduct.toLocaleString()}（底薪÷42×0.5，每診 $${Math.round(perShiftPay * 0.5)}）` +
+            (autoSickAttendDeduct > 0 ? `　全勤扣 $${autoSickAttendDeduct.toLocaleString()}（2600÷${reqShiftsForLeave}診×${sickShifts}診）` : '')
+        );
+    }
+    if (personalShifts > 0) {
+        leaveLines.push(`事假 ${personalShifts} 診 → 底薪扣 $${autoPersonalDeduct.toLocaleString()}（底薪÷42，每診 $${Math.round(perShiftPay)}）　全勤 2600 全扣`);
+    }
+    if (menstrualShifts > 0) {
+        const menParts = [
+            menHalf > 0   ? `半薪 ${menHalf} 診` : '',
+            menSick > 0   ? `併病假半薪 ${menSick} 診` : '',
+            menUnpaid > 0 ? `無薪 ${menUnpaid} 診（病假額度用盡）` : ''
+        ].filter(Boolean).join('、');
+        leaveLines.push(`生理假 ${menstrualShifts} 診 → 扣 $${autoMenstrualDeduct.toLocaleString()}（${menParts}）不扣全勤`);
+    }
+    Object.keys(ls).filter(k => k !== '病假' && k !== '事假' && k !== '生理假' && ls[k] > 0)
+        .forEach(k => leaveLines.push(`${k} ${ls[k]} 診`));
+    leaveInfoDiv.style.display = leaveLines.length > 0 ? 'block' : 'none';
+    leaveInfoDiv.innerHTML = `<b>📋 本月請假：</b>${leaveLines.join('　')}`;
+
+    document.getElementById('settleMemo').value = saved ? (saved.memo || '') : '';
+
+    // ── 還原動態加項（排除固定欄位，避免重複）───────────────
+    const FIXED_PLUS_NAMES = new Set([
+        '底薪','加班費','全勤','三診獎金','午晚加給','週六加給','國定假日加給','超診獎金',
+        '業績獎金',   // 業績獎金由 revenueRate × monthRevenue 自動計算，不列入動態加項
+        ...bonusCols,
+        ...Object.keys(bs.drBonus || {}).map(dr => '醫師獎金_' + dr)
+    ]);
+    if (saved) {
+        saved.additions.forEach(item => {
+            if (!FIXED_PLUS_NAMES.has(item.name))
+                addDynamicRow('addArea', 'plus', item.name, item.val, item.memo);
+        });
+        // 還原動態扣款（排除固定扣款欄位）
+        const FIXED_MINUS_NAMES = new Set(['勞保扣款','健保扣款','健保眷屬扣款','遲到扣款','病假扣薪','病假全勤扣款','事假扣薪','生理假扣薪']);
+        saved.deductions.forEach(item => {
+            if (!FIXED_MINUS_NAMES.has(item.name))
+                addDynamicRow('subArea', 'minus', item.name, item.val, item.memo);
+        });
+    }
+
+    syncMinutes();
+}
+
+// 單一欄位 HTML 產生器
+function fieldRow(label, id, val, extraAttr = '') {
+    return `<div style="display:flex; align-items:center; gap:8px; margin-bottom:10px;">
+        <label style="min-width:180px; font-size:13px;">${label}</label>
+        <input type="number" class="calc-plus" id="${id}" ${extraAttr} value="${val}"
+            style="width:100px;" oninput="calcNet()">
+    </div>`;
+}
+
+// ── 請假／遲到連動重算 ──────────────────────────────────────────
+// 當主管手動修改遲到分鐘後，呼叫此函式重新判斷全勤並更新提示
+function recalcLateAndAttend() {
+    // 重新加總遲到分鐘
+    let totalLate = 0;
+    document.querySelectorAll('.late-val').forEach(el => totalLate += Number(el.value) || 0);
+
+    // 讀取目前畫面上的數值（render() 已把這些存在 DOM data 上）
+    const lateDisqualify   = totalLate > 15;
+    const personalShifts   = Number(document.getElementById('deductPersonal').dataset.shifts || 0);
+    const hasPersonalLeave = personalShifts > 0;
+    const isFullTime       = document.getElementById('statEmpType').innerText === '正職';
+    const reqShiftsEl2     = document.getElementById('statReqShifts');
+    const reqShifts        = Number(reqShiftsEl2.dataset.req) || (isFullTime ? 42 : 22);
+    const actualShifts     = Number(document.getElementById('statShifts').innerText) || 0;
+
+    // 重算全勤
+    const attendQualify = !lateDisqualify && !hasPersonalLeave && actualShifts >= reqShifts;
+    let newAttendPay = 0;
+    if (attendQualify) {
+        newAttendPay = isFullTime ? 2600 : (actualShifts > reqShifts ? actualShifts * 50 : 0);
+    }
+    const bonusAttendEl = document.getElementById('bonusAttend');
+    if (bonusAttendEl) bonusAttendEl.value = newAttendPay;
+
+    // 重算全勤提示文字
+    const warnParts = [];
+    if (lateDisqualify)   warnParts.push(`遲到 ${totalLate} 分鐘`);
+    if (hasPersonalLeave) warnParts.push(`事假 ${personalShifts} 診`);
+    if (!attendQualify && !lateDisqualify && !hasPersonalLeave)
+        warnParts.push(`出勤不足（${actualShifts}/${reqShifts}診）`);
+    const warnHtml = warnParts.length > 0
+        ? `<span style="color:red;font-weight:bold;">⚠ 不符合（${warnParts.join('、')}）</span>`
+        : `<span style="color:green;">✓ 符合</span>`;
+
+    // 更新全勤欄位 label 旁的提示
+    const attendLabel = bonusAttendEl ? bonusAttendEl.closest('div')?.querySelector('label') : null;
+    if (attendLabel) {
+        const baseText = isFullTime
+            ? `需 ${reqShifts} 診，實際 ${actualShifts} 診 `
+            : `需 >22 診，實際 ${actualShifts} 診 `;
+        attendLabel.innerHTML = `全勤 <small style="color:#888">${baseText}${warnHtml}</small>`;
+    }
+
+    calcNet();
+}
+
+// 醫師獎金：單診金額變更時更新小計並重算
+function calcDrBonus(inputEl) {
+    const dr    = inputEl.dataset.dr;
+    const count = Number(inputEl.dataset.count);
+    const unit  = Number(inputEl.value) || 0;
+    const sub   = unit * count;
+    document.querySelector(`.dr-subtotal[data-dr="${dr}"]`).innerText = '$' + sub.toLocaleString();
+    calcNet();
+}
+
+function syncMinutes() {
+    let l = 0, o = 0;
+    document.querySelectorAll('.late-val').forEach(el => l += Number(el.value) || 0);
+    document.querySelectorAll('.ot-val').forEach(el => o += Number(el.value) || 0);
+
+    // 遲到卡片：超過 15 分鐘顯示警告色
+    const lateEl = document.getElementById('statLate');
+    lateEl.innerText = l;
+    lateEl.style.color = l > 15 ? 'red' : '';
+    const lateCard = lateEl.closest('.stat-card');
+    if (lateCard) lateCard.style.borderLeftColor = l > 15 ? 'red' : '';
+
+    document.getElementById('statOT').innerText = o;
+    // 自動更新加班費（5元/分）
+    const otPayEl = document.getElementById('otPay');
+    if (otPayEl) otPayEl.value = o * 5;
+    recalcLateAndAttend(); // 遲到變動→重算全勤
+}
+
+function addDynamicRow(areaId, type, name = '', val = 0, memo = '') {
+    const div = document.createElement('div');
+    div.className = 'dynamic-row';
+    div.innerHTML = `<input type="text" placeholder="名稱" value="${name}">
+        <input type="number" class="calc-${type}" value="${val}" oninput="calcNet()">
+        <input type="text" placeholder="備註" value="${memo}">
+        <span style="cursor:pointer; color:red;" onclick="this.parentElement.remove();calcNet();">✕</span>`;
+    document.getElementById(areaId).appendChild(div);
+    calcNet();
+}
+
+function calcNet() {
+    let p = 0, m = 0;
+    document.querySelectorAll('.calc-plus').forEach(el => p += Number(el.value) || 0);
+    // 加入醫師獎金（各醫師單診×診數）
+    document.querySelectorAll('.dr-unit-input').forEach(el => {
+        p += (Number(el.value) || 0) * Number(el.dataset.count);
+    });
+    document.querySelectorAll('.calc-minus').forEach(el => m += Number(el.value) || 0);
+    document.getElementById('netPayValue').innerText = Math.round(p - m).toLocaleString();
+}
+
+// 📸 截圖與自動上傳函式 (整合優化版)
+async function takeScreenshot() {
+    const ym = document.getElementById('yearMonth').value;
+    const eid = document.getElementById('empSelector').value;
+    const empName = document.getElementById('empSelector').selectedOptions[0].text;
+    const sBtn = document.getElementById('screenshotBtn');
+    const target = document.getElementById('hiddenAssistantView');
+
+    // --- 1. 同步數據至隱藏版型 ---
+    document.getElementById('ssYM').innerText = ym;
+    document.getElementById('ssName').innerText = empName;
+    document.getElementById('ssNetPay').innerText = document.getElementById('netPayValue').innerText;
+    const lateMins = Number(document.getElementById('statLate').innerText) || 0;
+    document.getElementById('ssLate').innerText = lateMins + (lateMins > 15 ? '（超標，扣全勤）' : '（未超標）');
+    document.getElementById('ssOT').innerText = document.getElementById('statOT').innerText;
+    document.getElementById('ssAL').innerText = document.getElementById('statAL').innerText;
+    document.getElementById('ssTotalMemo').innerText = document.getElementById('settleMemo').value;
+    document.getElementById('ssGenTime').innerText = new Date().toLocaleString();
+
+    // 渲染表格內容
+    let tableHtml = "";
+    document.querySelectorAll('#detailsTbody tr').forEach(tr => {
+        const cells = tr.querySelectorAll('td');
+        const late = tr.querySelector('.late-val').value;
+        const ot = tr.querySelector('.ot-val').value;
+        const memo = tr.querySelector('.edit-memo').value;
+        let statusDisplay = cells[2].innerText;
+        if(late > 0) statusDisplay += ` <span style="color:red">(遲${late})</span>`;
+        if(ot > 0) statusDisplay += ` <span style="color:green">(加${ot})</span>`;
+        tableHtml += `<tr style="border-bottom: 1px solid #eee;">
+            <td style="padding: 8px;">${cells[0].innerText} (${cells[1].innerText})</td>
+            <td style="padding: 8px;">${cells[3].innerText}</td>
+            <td style="padding: 8px;">${statusDisplay}</td>
+            <td style="padding: 8px; color: #666;">${memo || '-'}</td></tr>`;
+    });
+    document.getElementById('ssTableBody').innerHTML = tableHtml;
+
+    // 渲染應領項目
+    let plusHtml = "";
+    document.querySelectorAll('.calc-plus').forEach(el => {
+        const label = el.dataset.label || el.parentElement.querySelector('input[type="text"]').value;
+        const val = Number(el.value) || 0;
+        if(val !== 0) plusHtml += `<div style="display:flex; justify-content:space-between; margin-bottom:2px;"><span>${label}</span><span>$${val.toLocaleString()}</span></div>`;
+    });
+    document.getElementById('ssPlusArea').innerHTML = plusHtml;
+
+    // 渲染扣款項目
+    let minusHtml = "";
+    const deductItems = [
+        { label: '勞保扣款',     val: document.getElementById('deductLabor').value },
+        { label: '健保扣款',     val: document.getElementById('deductHealth').value },
+        { label: '健保眷屬扣款', val: document.getElementById('deductHealthFamily').value },
+        { label: '遲到扣款',     val: document.getElementById('deductLate').value },
+        { label: '病假扣薪',     val: document.getElementById('deductSick').value },
+        { label: '病假全勤扣款', val: document.getElementById('deductSickAttend').value },
+        { label: '事假扣薪',     val: document.getElementById('deductPersonal').value },
+        { label: '生理假扣薪',    val: document.getElementById('deductMenstrual').value }
+    ];
+    deductItems.forEach(item => { 
+        const val = Number(item.val) || 0; 
+        if(val !== 0) minusHtml += `<div style="display:flex; justify-content:space-between; margin-bottom:2px;"><span>${item.label}</span><span>-$${val.toLocaleString()}</span></div>`; 
+    });
+    document.querySelectorAll('#subArea .dynamic-row').forEach(row => { 
+        const ins = row.querySelectorAll('input'); 
+        const val = Number(ins[1].value) || 0; 
+        if(val !== 0) minusHtml += `<div style="display:flex; justify-content:space-between; margin-bottom:2px;"><span>${ins[0].value}</span><span>-$${val.toLocaleString()}</span></div>`; 
+    });
+    document.getElementById('ssMinusArea').innerHTML = minusHtml;
+
+    // --- 2. 準備截圖環境 (解決滑桿與標題錯位) ---
+    document.getElementById('loading').style.display = 'flex';
+    document.getElementById('loadingMsg').innerText = "正在產生長圖並上傳至雲端...";
+    sBtn.disabled = true;
+    sBtn.innerText = "⏳ 處理中...";
+
+    // 暫時修改樣式以利長截圖
+    const originalPosition = target.parentElement.style.position;
+    const ths = target.querySelectorAll('th');
+    
+    // 強制將隱藏容器展開，並關閉 Sticky
+    target.style.height = 'auto';
+    target.style.overflow = 'visible';
+    ths.forEach(th => { th.style.position = 'static'; }); 
+
+    try {
+        // 執行截圖
+        const canvas = await html2canvas(target, { 
+            scale: 2,           // 提高清晰度
+            useCORS: true,      // 允許跨域圖片
+            backgroundColor: "#ffffff",
+            windowHeight: target.scrollHeight // 捕捉完整捲動高度
+        });
+
+        // 恢復樣式
+        ths.forEach(th => { th.style.position = 'sticky'; });
+        target.style.height = ''; 
+        target.style.overflow = '';
+
+        const base64Data = canvas.toDataURL("image/png").split(',')[1];
+
+        // --- 3. 發送至 GAS 上傳 ---
+        const response = await fetch(GAS_URL, {
+            method: 'POST',
+            body: JSON.stringify({
+                action: "uploadSalarySlip",
+                yearMonth: ym,
+                empId: eid,
+                base64Data: base64Data
+            })
+        });
+        
+        const res = await response.json();
+        
+        if(res.status === "success") {
+            alert("✅ 薪資單截圖已成功上傳雲端，並回寫至 S 欄！");
+            sBtn.innerText = "✅ 已成功上傳";
+            sBtn.style.background = "var(--success)";
+        } else {
+            alert("❌ 上傳失敗：" + res.message);
+            sBtn.disabled = false;
+            sBtn.innerText = "📸 產生正式薪資單並自動上傳";
+        }
+    } catch (e) {
+        console.error("截圖/上傳錯誤:", e);
+        alert("系統出錯：" + e.toString());
+        sBtn.disabled = false;
+        sBtn.innerText = "📸 產生正式薪資單並自動上傳";
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('loadingMsg').innerText = "";
+    }
+}
+
+
+async function saveSalaryFinal() {
+    const empId = document.getElementById('empSelector').value;
+    const ym = document.getElementById('yearMonth').value;
+    
+    // 1. 基本檢查
+    if (!empId) return alert("請先選擇助理");
+    if (!confirm(`確認儲存此月份 (${ym}) 的結算資料？`)) return;
+
+    // 2. 顯示讀取中
+    document.getElementById('loading').style.display = 'flex';
+    document.getElementById('loadingMsg').innerText = "正在儲存結算資料...";
+
+    // 3. 抓取所有金額
+    const net = document.getElementById('netPayValue').innerText.replace(/,/g, '');
+
+    // 應領加項（固定欄位用 data-label）
+    const additions = [];
+    document.querySelectorAll('.calc-plus').forEach(el => {
+        const val  = Number(el.value) || 0;
+        const name = el.dataset.label || el.closest('.dynamic-row')?.querySelector('input[type="text"]')?.value || '';
+        if (name) additions.push({ name, val });
+    });
+    // 醫師獎金（每位醫師單獨存）
+    document.querySelectorAll('.dr-unit-input').forEach(el => {
+        const dr    = el.dataset.dr;
+        const count = Number(el.dataset.count);
+        const unit  = Number(el.value) || 0;
+        if (unit > 0) additions.push({ name: '醫師獎金_' + dr, val: unit * count, memo: `${dr} ${count}診 × ${unit}元` });
+    });
+    // 動態加項
+    document.querySelectorAll('#addArea .dynamic-row').forEach(row => {
+        const ins = row.querySelectorAll('input');
+        const name = ins[0].value; const val = Number(ins[1].value) || 0; const memo = ins[2]?.value || '';
+        if (name) additions.push({ name, val, memo });
+    });
+
+    // 扣款項目
+    const deductions = [];
+    deductions.push(
+        { name: "勞保扣款",     val: Number(document.getElementById('deductLabor').value)        || 0 },
+        { name: "健保扣款",     val: Number(document.getElementById('deductHealth').value)        || 0 },
+        { name: "健保眷屬扣款", val: Number(document.getElementById('deductHealthFamily').value)  || 0 },
+        { name: "遲到扣款",     val: Number(document.getElementById('deductLate').value)          || 0 },
+        { name: "病假扣薪",     val: Number(document.getElementById('deductSick').value)          || 0 },
+        { name: "病假全勤扣款", val: Number(document.getElementById('deductSickAttend').value)    || 0 },
+        { name: "事假扣薪",     val: Number(document.getElementById('deductPersonal').value)      || 0 },
+        { name: "生理假扣薪",    val: Number(document.getElementById('deductMenstrual')?.value)   || 0 }
+    );
+    document.querySelectorAll('#subArea .dynamic-row').forEach(row => {
+        const ins = row.querySelectorAll('input');
+        deductions.push({ name: ins[0].value, val: Number(ins[1].value) || 0, memo: ins[2]?.value || '' });
+    });
+
+    // 每日打卡調整
+    const dailyAdjusts = {};
+    document.querySelectorAll('#detailsTbody tr').forEach(tr => {
+        const date = tr.dataset.date, shift = tr.dataset.shift;
+        dailyAdjusts[`${date}_${shift}`] = {
+            late: tr.querySelector('.late-val').value,
+            ot:   tr.querySelector('.ot-val').value,
+            memo: tr.querySelector('.edit-memo').value
+        };
+    });
+
+    // 備註加上操作主管標記
+    const originalMemo = document.getElementById('settleMemo').value;
+    const operatorTag  = `[結算主管: ${currentUser.name}]`;
+    const finalMemo    = originalMemo.includes(operatorTag) ? originalMemo : `${operatorTag} ${originalMemo}`.trim();
+
+    // 5. 發送至後端
+    try {
+        const r = await fetch(GAS_URL, { 
+            method: 'POST', 
+            body: JSON.stringify({ 
+                action: "saveSalaryFinal", 
+                yearMonth: ym, 
+                empId: empId, 
+                dailyAdjustments: JSON.stringify(dailyAdjusts),
+                details: {
+                    basePay:      document.getElementById('basePay').value,
+                    labor:        document.getElementById('deductLabor').value,
+                    health:       document.getElementById('deductHealth').value,
+                    healthFamily: document.getElementById('deductHealthFamily').value,
+                    lateDeduct:   document.getElementById('deductLate').value,
+                    totalLate:    document.getElementById('statLate').innerText,
+                    otPay:        document.getElementById('otPay').value,
+                    totalOT:      document.getElementById('statOT').innerText,
+                    additions, deductions,
+                    netPay: net,
+                    memo:   finalMemo
+                }
+            }) 
+        });
+        
+        const res = await r.json();
+        
+        if (res.status === "success") {
+            alert("✅ 結算儲存成功！");
+            // 儲存後重新整理預覽畫面，以顯示最新狀態
+            await fetchPreview();
+        } else {
+            alert("❌ 儲存失敗：" + res.message);
+        }
+    } catch (e) {
+        console.error("Save Error:", e);
+        alert("❌ 連線失敗，請檢查網路連線或 API 設定");
+    } finally {
+        document.getElementById('loading').style.display = 'none';
+        document.getElementById('loadingMsg').innerText = "";
+    }
+}
+</script>
+</body>
+</html>
