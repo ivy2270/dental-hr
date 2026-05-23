@@ -1,0 +1,131 @@
+# 禾新牙醫診所管理系統
+
+基於 Google Apps Script（GAS）+ HTML 前端的輕量化診所人事管理系統，涵蓋員工登入、打卡、排班、請假與薪資結算等核心功能。
+
+---
+
+## 系統架構
+
+```
+前端 (HTML + JS)          後端 (Google Apps Script)
+─────────────────         ──────────────────────────
+index.html                code.gs        路由 + 登入 + 工具函式
+attendance.html      ──►  Attendance.gs  打卡記錄與查詢
+attendance_public.html    Schedule.gs    排班管理
+schedule_admin.html       Salary.gs      薪資計算與結算
+schedule_view.html
+salary_admin.html
+salary_check.html
+config.js  (GAS_URL)
+```
+
+資料儲存於 Google Sheets，分為「主資料庫」（員工主檔、設定）與「年度資料庫」（打卡、排班、薪資），透過 `Route_Settings` 工作表切換年度。
+
+---
+
+## 主要功能
+
+### 登入
+- 員工以工號 + 數字 PIN 碼登入
+- 主管（主管 / Admin）解鎖排班管理、薪資結算等進階功能
+- Session 保存登入狀態，10 分鐘無操作自動登出
+
+### 打卡
+- **個人打卡**（`attendance.html`）：隨機浮動確認按鈕防誤觸
+- **公用看板**（`attendance_public.html`）：診所共用平板，點選姓名後打卡
+- 打卡時間寫入 `Attendance_Raw`，可查詢最近 150 筆紀錄，異常日期自動標示
+
+### 排班管理（主管）
+- 週排班拖放介面，支援早 / 午 / 晚三診
+- 可設定醫師備註、複製歷史週班表、發佈後自動建立快照
+- 支援產出彩色或黑白班表圖卡下載（A4 橫向）
+- 請假、醫師休假自動防呆提示
+
+### 班表查詢（員工）
+- 個人月曆檢視（含請假標記、國定假日）
+- 全院週表（可展開每日各診次排班詳情）
+
+### 薪資結算（主管）
+- 自動比對打卡紀錄與班表，計算遲到 / 加班分鐘
+- 依計薪規則自動帶入：三診獎金、午晚加給、週六加給、全勤獎金
+- 病假（半薪）、事假（全薪扣除）自動計算
+- 支援動態加項 / 扣項、醫師跟診獎金
+- 結算後產生薪資單截圖並上傳 Google Drive，回寫連結至試算表
+
+### 薪資核對（員工）
+- 員工查看本月薪資明細、出勤狀態
+- 確認後鎖定，觸發主管端截圖功能解鎖
+
+---
+
+## 計薪規則摘要
+
+| 項目 | 規則 |
+|------|------|
+| 遲到 | ≤15 分鐘不扣；>15 分鐘扣全勤；>30 分鐘另按底薪比例手動扣款 |
+| 加班 | 5 元 / 分鐘 |
+| 全勤 | 正職固定 2,600 元（需出勤 42 診）；兼職 >22 診才有，50 元 / 診 |
+| 三診獎金 | 正職：200 元 / 天（早午晚都出勤） |
+| 午晚加給 | 正職：200 元 / 天 |
+| 週六加給 | 正職：200 元 / 診 |
+| 病假 | 半薪，連帶影響全勤 |
+| 事假 | 無薪，直接取消全勤資格 |
+| 國定假日 | 每天減少 2 診應出勤診數 |
+
+---
+
+## Google Sheets 工作表一覽
+
+**主資料庫**
+
+| 工作表 | 說明 |
+|--------|------|
+| `Employee_Master` | 員工基本資料、PIN 碼、薪資設定 |
+| `Shift_Settings` | 各診次標準上下班時間、判定窗口 |
+| `Route_Settings` | 年度資料庫 ID 路由（Active 切換） |
+| `Leave_Balance_Logs` | 特休餘額異動紀錄 |
+| `System_Config` | 系統參數（如薪資單資料夾 ID） |
+
+**年度資料庫**
+
+| 工作表 | 說明 |
+|--------|------|
+| `Attendance_Raw` | 原始打卡紀錄 |
+| `Schedule_Live` | 當前有效排班 |
+| `Schedule_Template` | 排班範本（預設診位） |
+| `Schedule_Snapshots` | 排班歷史快照 |
+| `Schedule_Notes` | 週備註 |
+| `Leave_Tracker` | 員工請假紀錄 |
+| `Dr_Leave_Tracker` | 醫師請假紀錄 |
+| `Payroll_Final` | 薪資結算結果 |
+| `Public_Holidays` | 國定假日清單 |
+
+---
+
+## 部署方式
+
+1. 建立 Google Apps Script 專案，將 `.gs` 檔案內容貼入對應的指令碼檔案
+2. 建立 Google Sheets 主資料庫，依上表建立所需工作表
+3. 在 `Route_Settings` 填入年度資料庫的 Spreadsheet ID，Status 設為 `Active`
+4. GAS 部署為「網頁應用程式」，執行身分設為服務帳號，存取權設為「所有人」
+5. 將部署網址填入 `config.js` 的 `GAS_URL`
+6. 將 HTML 檔案部署至靜態網頁服務（GitHub Pages、Cloudflare Pages 等）或直接作為 GAS HTML 服務使用
+
+---
+
+## 檔案說明
+
+| 檔案 | 說明 |
+|------|------|
+| `config.js` | GAS 端點 URL 設定 |
+| `index.html` | 登入入口與主選單 |
+| `attendance.html` | 個人打卡頁面 |
+| `attendance_public.html` | 診所公用打卡看板 |
+| `schedule_admin.html` | 排班管理（主管） |
+| `schedule_view.html` | 班表查詢（員工） |
+| `salary_admin.html` | 薪資結算（主管） |
+| `salary_check.html` | 薪資核對（員工） |
+| `code.gs` | 後端路由、登入、工具函式 |
+| `Attendance.gs` | 打卡相關 GAS 函式 |
+| `Schedule.gs` | 排班相關 GAS 函式 |
+| `Salary.gs` | 薪資計算與結算 GAS 函式 |
