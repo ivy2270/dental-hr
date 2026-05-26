@@ -8,82 +8,213 @@
     <script src="config.js"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <style>
-        :root { 
-            --primary: #5c6b73; --accent: #8ecae6; --success: #9dc88d; 
-            --danger: #ef9a9a; --bg: #f8f9fa; --gray: #b0bec5;
-            --orange: #ffcc80; --teal: #80cbc4;
+        :root {
+            --primary:      #3d5a6c;
+            --primary-light:#5c7a8f;
+            --clk:   #7BC8B2;
+            --sch:   #7FB7E6;
+            --log:   #A98BC9;
+            --lv:    #F2A38A;
+            --sal:   #D4A373;
+            --form:  #E89AB3;
+            --his:   #BFA58A;
+            --bon:   #9F86D1;
+            --adm-bg: #1e2d3d;
+            --adm-title: #8ecfe8;
+            --adm-sch:  #7E96A8;
+            --adm-sal:  #9B8572;
+            --adm-dr:   #70877A;
+            --adm-rev:  #A57C78;
+            --adm-hr:   #7E748F;
+            --danger:   #ef9a9a;
+            --bg:       #f0f4f7;
+            --card-bg:  #ffffff;
         }
-        body { font-family: "PingFang TC", "Microsoft JhengHei", sans-serif; background: var(--bg); margin: 0; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
-        
-        /* 全畫面遮罩 */
-        #loadingOverlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.7); backdrop-filter: blur(2px); z-index: 9999; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .spinner { width: 50px; height: 50px; border: 5px solid #f3f3f3; border-top: 5px solid var(--accent); border-radius: 50%; animation: spin 1s linear infinite; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-
-        .card { background: white; padding: 1.5rem; border-radius: 24px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); width: 95%; max-width: 420px; text-align: center; box-sizing: border-box; }
+        * { box-sizing: border-box; }
+        body {
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            background: var(--bg);
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            padding: 20px 0 40px;
+        }
+        #loadingOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.75); backdrop-filter: blur(3px);
+            z-index: 9999; display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+        }
+        .spinner {
+            width: 44px; height: 44px;
+            border: 4px solid #e0e8ef;
+            border-top: 4px solid var(--clk);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .card {
+            background: var(--card-bg);
+            padding: 1.6rem;
+            border-radius: 28px;
+            box-shadow: 0 12px 40px rgba(40,60,80,0.10);
+            width: 95%;
+            max-width: 430px;
+            text-align: center;
+        }
         .hidden { display: none !important; }
-
-        /* 登入樣式 */
-        .input-group { display: flex; justify-content: center; gap: 10px; margin-bottom: 20px; }
-        .input-label { font-size: 0.8em; color: #888; display: block; margin-bottom: 5px; }
-        .input-field { padding: 12px; font-size: 1.2em; text-align: center; border: 2px solid #eee; border-radius: 12px; background: white; transition: 0.3s; }
-        .input-field:focus { border-color: var(--accent); outline: none; background: #fff; }
-        
-        .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin: 0 auto; max-width: 280px; }
-        .pin-btn { padding: 18px; font-size: 1.5em; border: 1px solid #f0f0f0; background: #fff; border-radius: 16px; cursor: pointer; transition: 0.2s; font-weight: bold; color: var(--primary); }
-        .pin-btn:active { background: #f8f9fa; transform: scale(0.92); }
-        .pin-btn.action { background: #fdfdfd; font-size: 1em; color: #999; }
-
-        /* 選單佈局 */
-        .user-header { background: #fcfcfc; border-radius: 15px; padding: 15px; margin-bottom: 20px; border: 1px solid #f5f5f5; }
-        .menu-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-        
-        /* 按鈕基礎樣式 */
-        .menu-btn { width: 100%; border: none; border-radius: 16px; padding: 15px 10px; font-size: 0.95em; cursor: pointer; color: white; font-weight: bold; transition: 0.2s; position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
-        .menu-btn i { font-size: 1.4em; }
-        .menu-btn:active { transform: scale(0.96); box-shadow: none; filter: brightness(0.95); }
-
-        /* 打卡按鈕 - 最大 */
-        .btn-attendance { grid-column: span 2; padding: 30px 10px; font-size: 1.3em; background: var(--accent); box-shadow: 0 6px 15px rgba(142, 202, 230, 0.3); }
-        
-        /* 配色方案 */
-        .btn-schedule { background: var(--success); }
-        .btn-salary { background: #9fa8da; } /* 柔和紫藍 */
-        .btn-history { background: var(--gray); }
-        .btn-leave { background: var(--orange); }
-        .btn-log { background: var(--teal); }
-        .btn-form { background: #ce93d8; } /* 柔和紫 */
-        .btn-bonus { background: #a5d6a7; } /* 柔和綠 */
-        .btn-bonus-history { background: #80cbc4; } /* teal */
-        .btn-manager { background: #1565c0; } /* 深藍，主管專屬 */
-        .btn-logout { background: #eceff1; color: #78909c; grid-column: span 2; margin-top: 10px; padding: 12px; }
-
-        #msg { color: var(--danger); font-size: 0.9em; margin-top: 15px; min-height: 1.2em; font-weight: bold; }
-
-        /* 彈窗樣式 */
-        .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.6); backdrop-filter: blur(4px); z-index: 1000; display: flex; justify-content: center; align-items: center; }
-        .modal-content { background: white; width: 90%; max-width: 400px; border-radius: 24px; padding: 25px; max-height: 85vh; overflow-y: auto; }
-        .history-item { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; border-bottom: 1px solid #f9f9f9; }
-        .btn-view { background: var(--success); color: white; padding: 8px 15px; border-radius: 10px; text-decoration: none; font-size: 0.85em; }
+        .login-title {
+            font-size: 1.15em; font-weight: 700;
+            color: var(--primary); margin: 0 0 6px; letter-spacing: 0.02em;
+        }
+        .login-sub {
+            font-size: 0.78em; color: #a0adb6;
+            margin: 0 0 20px; letter-spacing: 0.05em;
+        }
+        .input-group { display: flex; gap: 10px; margin-bottom: 18px; }
+        .input-wrap { flex: 1; text-align: left; }
+        .input-wrap.wide { flex: 1.5; }
+        .input-label { font-size: 0.72em; color: #9aa5af; display: block; margin-bottom: 4px; font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase; }
+        .input-field {
+            width: 100%; padding: 11px 12px; font-size: 1.1em; text-align: center;
+            border: 2px solid #e8eef3; border-radius: 14px;
+            background: #fafcfd; transition: 0.25s; color: var(--primary);
+        }
+        .input-field:focus { border-color: var(--clk); outline: none; background: #fff; box-shadow: 0 0 0 3px rgba(91,159,212,0.12); }
+        .pin-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; max-width: 280px; margin: 0 auto; }
+        .pin-btn {
+            padding: 16px; font-size: 1.45em; font-weight: 700;
+            border: 2px solid #edf1f5; background: #fafcfd;
+            border-radius: 16px; cursor: pointer; transition: 0.15s; color: var(--primary);
+        }
+        .pin-btn:hover { background: #f0f6fb; border-color: #d0e3ef; }
+        .pin-btn:active { transform: scale(0.90); background: #e8f3fb; }
+        .pin-btn.action { font-size: 0.88em; color: #99aab5; }
+        .pin-btn.confirm { background: var(--sch); border-color: var(--sch); color: white; font-size: 0.9em; }
+        .pin-btn.confirm:hover { filter: brightness(1.08); }
+        #msg { color: #e07070; font-size: 0.88em; margin-top: 14px; min-height: 1.2em; font-weight: 600; }
+        .user-header {
+            background: linear-gradient(135deg, #eaf3fb 0%, #f0f7ee 100%);
+            border-radius: 18px; padding: 14px 16px; margin-bottom: 18px;
+            border: 1px solid #ddeef7; text-align: left;
+            display: flex; align-items: center; gap: 12px;
+        }
+        .user-avatar {
+            width: 42px; height: 42px; border-radius: 50%;
+            background: var(--clk);
+            display: flex; align-items: center; justify-content: center;
+            color: white; font-size: 1.1em; flex-shrink: 0;
+        }
+        .user-info { flex: 1; }
+        .user-name { font-size: 1.2em; font-weight: 700; color: var(--primary); line-height: 1.2; }
+        .user-role-badge {
+            display: inline-block; margin-top: 4px; font-size: 0.72em; font-weight: 600;
+            background: white; border: 1px solid #c8dde8;
+            padding: 2px 10px; border-radius: 99px; color: #5c7a8f; letter-spacing: 0.03em;
+        }
+        .menu-btn {
+            width: 100%; border: none; border-radius: 16px;
+            padding: 14px 10px; font-size: 0.9em; cursor: pointer;
+            color: white; font-weight: 700;
+            transition: transform 0.15s, filter 0.15s, box-shadow 0.15s;
+            display: flex; flex-direction: column;
+            align-items: center; justify-content: center;
+            gap: 7px; position: relative; line-height: 1.3;
+        }
+        .menu-btn i { font-size: 1.35em; }
+        .menu-btn:hover { filter: brightness(1.08); }
+        .menu-btn:active { transform: scale(0.94); filter: brightness(0.95); box-shadow: none; }
+        .section-label {
+            font-size: 0.72em; font-weight: 700; letter-spacing: 0.08em;
+            text-transform: uppercase; color: #a0b0bc;
+            margin: 0 0 10px 2px; text-align: left;
+        }
+        .employee-grid {
+            display: grid; grid-template-columns: repeat(2, 1fr);
+            gap: 10px; margin-bottom: 16px;
+        }
+        .btn-attendance {
+            grid-column: span 2; padding: 26px 10px; font-size: 1.2em;
+            background: linear-gradient(135deg, var(--clk) 0%, #4a8fc4 100%);
+            box-shadow: 0 6px 18px rgba(91,159,212,0.30); border-radius: 20px;
+        }
+        .btn-schedule  { background: var(--sch); }
+        .btn-log       { background: var(--log); }
+        .btn-leave     { background: var(--lv); }
+        .btn-salary    { background: var(--sal); }
+        .btn-form      { background: var(--form); }
+        .btn-history   { background: var(--his); }
+        .btn-bonus     { background: var(--bon); }
+        .btn-bonus-his { background: #7FA7C9; }
+        .admin-section {
+            background: var(--adm-bg); border-radius: 22px;
+            padding: 16px 14px 14px; margin-bottom: 14px;
+        }
+        .admin-section-label {
+            font-size: 0.72em; font-weight: 700; letter-spacing: 0.1em;
+            text-transform: uppercase; color: var(--adm-title);
+            margin: 0 0 12px 2px; text-align: left;
+            display: flex; align-items: center; gap: 6px;
+        }
+        .admin-section-label i { font-size: 0.95em; }
+        .admin-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 9px; }
+        .btn-adm-schedule { background: var(--adm-sch); }
+        .btn-adm-salary   { background: var(--adm-sal); }
+        .btn-adm-dr       { background: var(--adm-dr); }
+        .btn-adm-review   { background: var(--adm-rev); }
+        .btn-adm-hr       { grid-column: span 2; background: linear-gradient(135deg, var(--adm-hr), #1e3a65); }
+        .btn-logout {
+            grid-column: span 2; background: #eceff1; color: #78909c;
+            padding: 11px; margin-top: 4px; border-radius: 14px; font-size: 0.85em;
+        }
+        .btn-logout:hover { background: #dde3e7; filter: none; }
+        .badge {
+            position: absolute; top: 7px; right: 10px;
+            background: #ef9a9a; color: #7f0000;
+            font-size: 0.65em; font-weight: 700;
+            padding: 2px 8px; border-radius: 99px;
+        }
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(30,45,60,0.55); backdrop-filter: blur(5px);
+            z-index: 1000; display: flex; justify-content: center; align-items: center;
+        }
+        .modal-content {
+            background: white; width: 90%; max-width: 400px;
+            border-radius: 24px; padding: 24px; max-height: 85vh; overflow-y: auto;
+        }
+        .history-item {
+            display: flex; justify-content: space-between; align-items: center;
+            padding: 13px 0; border-bottom: 1px solid #f5f5f5;
+        }
+        .btn-view {
+            background: var(--sch); color: white;
+            padding: 7px 14px; border-radius: 10px;
+            text-decoration: none; font-size: 0.83em; font-weight: 600;
+        }
     </style>
 </head>
 <body>
 
     <div id="loadingOverlay" class="hidden">
         <div class="spinner"></div>
-        <p style="margin-top:15px; color:var(--primary); font-weight:bold;">資料傳輸中...</p>
+        <p style="margin-top:14px; color:var(--primary); font-weight:600; font-size:0.9em;">資料傳輸中…</p>
     </div>
 
+    <!-- 登入頁 -->
     <div id="loginPage" class="card">
-        <h2 style="margin: 0 0 20px 0; color: var(--primary);">微風牙醫診所管理系統</h2>
+        <p class="login-title">微風牙醫診所</p>
+        <p class="login-sub">BREEZE DENTAL CLINIC · MANAGEMENT SYSTEM</p>
         <div class="input-group">
-            <div style="flex: 1;">
+            <div class="input-wrap">
                 <label class="input-label">工號</label>
-                <input type="text" id="empId" placeholder="ID" class="input-field" style="width: 100%; box-sizing: border-box;">
+                <input type="text" id="empId" placeholder="ID" class="input-field">
             </div>
-            <div style="flex: 1.5;">
+            <div class="input-wrap wide">
                 <label class="input-label">密碼</label>
-                <input type="password" id="pinInput" placeholder="PIN" class="input-field" style="width: 100%; box-sizing: border-box; background: #fafafa;">
+                <input type="password" id="pinInput" placeholder="● ● ● ●" class="input-field">
             </div>
         </div>
         <div class="pin-grid">
@@ -98,33 +229,29 @@
             <button class="pin-btn" onclick="pressKey('9')">9</button>
             <button class="pin-btn action" onclick="clearPin()">清除</button>
             <button class="pin-btn" onclick="pressKey('0')">0</button>
-            <button class="pin-btn action" onclick="submitLogin()" style="background:var(--success); color:white; border: none;">確認</button>
+            <button class="pin-btn confirm" onclick="submitLogin()">確認</button>
         </div>
         <p id="msg"></p>
     </div>
 
+    <!-- 選單頁 -->
     <div id="menuPage" class="card hidden">
         <div class="user-header">
-            <span style="color:#999; font-size:0.9em;">Clinic Management System</span><br>
-            <strong style="font-size:1.4em; color: var(--primary);"><span id="userName"></span></strong> 
-            <div id="userRole" style="margin-top: 5px; font-size:0.8em; display: inline-block; background:#fff; border:1px solid #eee; padding:2px 12px; border-radius:20px; color: #666;"></div>
-        </div>
-        
-        <div class="menu-grid">
-            <button class="menu-btn btn-attendance" onclick="openModule('attendance')">
-                <i class="fa-solid fa-clock-rotate-left"></i> 上班 / 下班打卡
-            </button>
-
-            <div id="adminMenu" class="menu-grid" style="grid-column: span 2; display: contents;">
-                <button class="menu-btn btn-schedule" onclick="openModule('schedule_admin')">
-                    <i class="fa-solid fa-calendar-check"></i> 排班管理
-                </button>
-                <button class="menu-btn btn-salary" onclick="requireSalaryPin()">
-                    <i class="fa-solid fa-calculator"></i> 薪資結算
-                </button>
+            <div class="user-avatar"><i class="fa-solid fa-user"></i></div>
+            <div class="user-info">
+                <div class="user-name"><span id="userName"></span></div>
+                <div class="user-role-badge" id="userRole"></div>
             </div>
+        </div>
 
-            <button class="menu-btn btn-schedule" onclick="openModule('schedule_view')">
+        <!-- 一般員工功能 -->
+        <p class="section-label"><i class="fa-solid fa-user" style="margin-right:4px;"></i> 員工功能</p>
+        <div class="employee-grid">
+            <button class="menu-btn btn-attendance" onclick="openModule('attendance')">
+                <i class="fa-solid fa-clock-rotate-left"></i>
+                上班 / 下班打卡
+            </button>
+            <button class="menu-btn btn-schedule" onclick="openModule('schedule_view', true)">
                 <i class="fa-solid fa-calendar-days"></i> 查看班表
             </button>
             <button class="menu-btn btn-log" onclick="showAttendanceHistory()">
@@ -133,11 +260,11 @@
             <button class="menu-btn btn-leave" onclick="showLeaveHistory()">
                 <i class="fa-solid fa-umbrella-beach"></i> 請假紀錄
             </button>
-            <button class="menu-btn btn-salary" onclick="openModule('salary_check')">
-                <i class="fa-solid fa-file-invoice-dollar"></i> 薪資核對
-            </button>
             <button class="menu-btn btn-form" onclick="openModule('leave_apply')">
                 <i class="fa-solid fa-pen-to-square"></i> 請假申請
+            </button>
+            <button class="menu-btn btn-salary" onclick="openModule('salary_check', true)">
+                <i class="fa-solid fa-file-invoice-dollar"></i> 薪資核對
             </button>
             <button class="menu-btn btn-history" onclick="showSalaryHistory()">
                 <i class="fa-solid fa-box-archive"></i> 過往薪資
@@ -145,48 +272,70 @@
             <button class="menu-btn btn-bonus" onclick="openModule('bonus_apply')">
                 <i class="fa-solid fa-coins"></i> 加給申請
             </button>
-            <button class="menu-btn btn-bonus-history" onclick="openBonusHistory()">
+            <button class="menu-btn btn-bonus-his" onclick="openBonusHistory()">
                 <i class="fa-solid fa-receipt"></i> 加給查詢
             </button>
+        </div>
 
-            <button id="btnManagerReview" class="menu-btn btn-manager hidden" onclick="openModule('manager_review')" style="grid-column: span 2;">
-                <i class="fa-solid fa-clipboard-check"></i> 審核申請
-                <span id="reviewBadge" class="hidden" style="position:absolute; top:8px; right:12px; background:#ef9a9a; color:#7f0000; font-size:0.7em; font-weight:bold; padding:2px 8px; border-radius:99px;"></span>
-            </button>
+        <!-- 主管專區 -->
+        <div id="adminSection" class="admin-section hidden">
+            <p class="admin-section-label">
+                <i class="fa-solid fa-shield-halved"></i> 主管專區
+            </p>
+            <div class="admin-grid">
+                <button class="menu-btn btn-adm-schedule" onclick="openModule('schedule_admin', true)">
+                    <i class="fa-solid fa-calendar-check"></i> 排班管理
+                </button>
+                <button class="menu-btn btn-adm-salary" onclick="requireSalaryPin()">
+                    <i class="fa-solid fa-calculator"></i> 薪資結算
+                </button>
+                <button class="menu-btn btn-adm-dr" onclick="openDrBonusReport()">
+                    <i class="fa-solid fa-stethoscope"></i> 助理跟診統計
+                </button>
+                <button id="btnManagerReview" class="menu-btn btn-adm-review" onclick="openModule('manager_review', true)">
+                    <i class="fa-solid fa-clipboard-check"></i> 審核申請
+                    <span id="reviewBadge" class="badge hidden"></span>
+                </button>
+                <button id="btnHrAdmin" class="menu-btn btn-adm-hr" onclick="openHrAdmin()">
+                    <i class="fa-solid fa-users-gear"></i> 人員管理
+                </button>
+            </div>
+        </div>
 
-            <button id="btnHrAdmin" class="menu-btn btn-manager hidden" onclick="openHrAdmin()" style="grid-column: span 2; background: linear-gradient(135deg, #1565c0, #0d47a1);">
-                <i class="fa-solid fa-users-gear"></i> 人員管理
-            </button>
-
+        <!-- 登出 -->
+        <div style="display:grid;">
             <button class="menu-btn btn-logout" onclick="logout()">
                 <i class="fa-solid fa-right-from-bracket"></i> 安全登出系統
             </button>
         </div>
     </div>
 
+    <!-- 歷史薪資彈窗 -->
     <div id="historyModal" class="modal-overlay hidden">
         <div class="modal-content">
             <h3 style="margin-top:0; color:var(--primary); border-bottom:2px solid #f0f0f0; padding-bottom:10px;"><i class="fa-solid fa-box-archive"></i> 歷史薪資單</h3>
-            <div id="historyList" style="text-align: left;"></div>
-            <button class="menu-btn btn-logout" onclick="closeHistoryModal()">關閉</button>
+            <div id="historyList" style="text-align:left;"></div>
+            <button class="menu-btn btn-logout" style="margin-top:16px;" onclick="closeHistoryModal()">關閉</button>
         </div>
     </div>
-	
+
+    <!-- 請假紀錄彈窗 -->
     <div id="leaveModal" class="modal-overlay hidden">
         <div class="modal-content">
             <h3 style="margin-top:0; color:var(--primary); border-bottom:2px solid #f0f0f0; padding-bottom:10px;">
                 <i class="fa-solid fa-umbrella-beach"></i> <span id="leaveYear"></span> 年度請假
             </h3>
-            <div id="leaveList" style="text-align: left; margin-top:15px;"></div>
-            <button class="menu-btn btn-logout" onclick="$('#leaveModal').addClass('hidden')">關閉</button>
+            <div id="leaveList" style="text-align:left; margin-top:15px;"></div>
+            <button class="menu-btn btn-logout" style="margin-top:16px;" onclick="$('#leaveModal').addClass('hidden')">關閉</button>
         </div>
     </div>
 
+    <!-- 打卡紀錄彈窗 -->
     <div id="attendanceModal" class="modal-overlay hidden">
         <div class="modal-content">
             <h3 style="margin-top:0; color:var(--primary); border-bottom:2px solid #f0f0f0; padding-bottom:10px;"><i class="fa-solid fa-fingerprint"></i> 最近打卡紀錄</h3>
-            <div id="attendanceList" style="text-align: left; margin-top:15px;"></div>
-            <button class="menu-btn btn-logout" onclick="$('#attendanceModal').addClass('hidden')">關閉</button>
+            <div id="attendanceList" style="text-align:left; margin-top:15px;"></div>
+            <button class="menu-btn btn-logout" style="margin-top:16px;" onclick="$('#attendanceModal').addClass('hidden')">關閉</button>
         </div>
     </div>
 
@@ -196,36 +345,25 @@
     let idleTimer;
 
     $(document).ready(function() {
-        // 鍵盤輸入監聽
         $(document).on('keydown', function(e) {
             if (document.activeElement.id === 'empId') {
                 if (e.key === 'Enter') submitLogin();
                 return;
             }
-            // 實體鍵盤輸入數字
             if (e.key >= '0' && e.key <= '9') {
-                e.preventDefault();
-                pressKey(e.key);
+                e.preventDefault(); pressKey(e.key);
             } else if (e.key === 'Backspace') {
                 e.preventDefault();
-                currentPin = currentPin.slice(0, -1);
-                updateDisplay();
+                currentPin = currentPin.slice(0, -1); updateDisplay();
             } else if (e.key === 'Enter') {
-                e.preventDefault();
-                submitLogin();
+                e.preventDefault(); submitLogin();
             } else if (e.key === 'Escape') {
-                clearPin();
-                $('.modal-overlay').addClass('hidden');
+                clearPin(); $('.modal-overlay').addClass('hidden');
             }
         });
 
-        // 檢查是否維持登入 (sessionStorage)
         const savedUser = sessionStorage.getItem('clinicUser');
-        if (savedUser) {
-            currentUser = JSON.parse(savedUser);
-            showMenu();
-        }
-
+        if (savedUser) { currentUser = JSON.parse(savedUser); showMenu(); }
         $('#empId').focus();
     });
 
@@ -241,11 +379,8 @@
     async function submitLogin() {
         const empId = $('#empId').val();
         if (!empId) { showError("請輸入工號"); $('#empId').focus(); return; }
-        if (!currentPin) { showError("請輸入密碼"); $('#pinInput').focus(); return; }
-        
-        showError("驗證中...");
-        toggleLoading(true);
-        
+        if (!currentPin) { showError("請輸入密碼"); return; }
+        showError("驗證中…"); toggleLoading(true);
         try {
             const resp = await fetch(GAS_URL, {
                 method: "POST",
@@ -258,7 +393,7 @@
                 showMenu();
             } else {
                 showError("❌ " + res.message);
-                clearPin(false); // 僅清除密碼不清除錯誤訊息
+                clearPin(false);
             }
         } catch (e) { showError("❌ 連線失敗"); }
         finally { toggleLoading(false); }
@@ -269,22 +404,15 @@
         $('#menuPage').removeClass('hidden');
         $('#userName').text(currentUser.name);
         $('#userRole').text(currentUser.role);
-        
-        // 主管顯示額外選單
         if (currentUser.role === "主管" || currentUser.role === "Admin") {
-            $('#adminMenu').show();
-            $('#btnManagerReview').removeClass('hidden');
-            $('#btnHrAdmin').removeClass('hidden');
+            $('#adminSection').removeClass('hidden');
             loadPendingCount();
         } else {
-            $('#adminMenu').hide();
-            $('#btnManagerReview').addClass('hidden');
-            $('#btnHrAdmin').addClass('hidden');
+            $('#adminSection').addClass('hidden');
         }
         startIdleTimer();
     }
 
-    // 每個彈窗與按鈕點選時都呼叫 toggleLoading
     async function showSalaryHistory() {
         toggleLoading(true);
         try {
@@ -295,8 +423,7 @@
             const res = await resp.json();
             if (res.status === "success") {
                 showError("");
-                const listArea = $('#historyList');
-                listArea.empty();
+                const listArea = $('#historyList').empty();
                 if (res.data.length === 0) {
                     listArea.append('<p style="text-align:center; color:#999; padding:20px;">尚無歷史資料</p>');
                 } else {
@@ -328,7 +455,6 @@
                 if (res.data.length === 0) {
                     listArea.append('<p style="text-align:center; color:#999;">目前無紀錄</p>');
                 } else {
-                    // 統計邏輯
                     const stats = {};
                     res.data.forEach(item => {
                         if (item.status !== "退回") {
@@ -339,7 +465,6 @@
                     let statsHtml = '<div style="background:#f9f9f9; padding:10px; border-radius:10px; margin-bottom:10px; display:flex; flex-wrap:wrap; gap:5px;">';
                     for (const [k, v] of Object.entries(stats)) statsHtml += `<span style="font-size:0.8em; background:#fff; padding:2px 8px; border-radius:5px; border:1px solid #eee;">${k}: ${v}</span>`;
                     statsHtml += '</div>';
-
                     let tableHtml = '<table style="width:100%; font-size:0.85em;">';
                     res.data.forEach(item => {
                         let color = item.status === "核准" ? "green" : (item.status === "退回" ? "red" : "orange");
@@ -384,15 +509,26 @@
 
     function requireSalaryPin() {
         const check = prompt("【安全驗證】請再次輸入您的登入密碼：");
-        if (check === currentUser.pin) { openModule('salary_admin'); }
+        if (check === currentUser.pin) { openModule('salary_admin', true); }
         else if (check !== null) { alert("密碼錯誤"); }
     }
 
-    function openModule(pageName) {
-        toggleLoading(true);
-        const url = `${pageName}.html?empId=${currentUser.empId}&name=${encodeURIComponent(currentUser.name)}&role=${currentUser.role}&t=${new Date().getTime()}`;
+    function openModule(pageName, newTab = false) {
+    toggleLoading(true);
+
+    const url =
+        `${pageName}.html?empId=${currentUser.empId}` +
+        `&name=${encodeURIComponent(currentUser.name)}` +
+        `&role=${currentUser.role}` +
+        `&t=${new Date().getTime()}`;
+
+    if (newTab) {
+        window.open(url, '_blank');
+        setTimeout(() => toggleLoading(false), 300);
+    } else {
         window.location.href = url;
     }
+}
 
     function openBonusHistory() {
         toggleLoading(true);
@@ -403,16 +539,23 @@
     function openHrAdmin() {
         toggleLoading(true);
         const url = `hr_admin.html?empId=${currentUser.empId}&name=${encodeURIComponent(currentUser.name)}&role=${currentUser.role}&t=${new Date().getTime()}`;
-        window.location.href = url;
+        window.open(url, '_blank');
+        setTimeout(() => toggleLoading(false), 300);
     }
 
-    function logout() { 
-        sessionStorage.removeItem('clinicUser');
-        currentUser = null; 
-        window.location.reload(); 
+    function openDrBonusReport() {
+        toggleLoading(true);
+        const url = `dr_bonus_report.html?empId=${currentUser.empId}&name=${encodeURIComponent(currentUser.name)}&role=${currentUser.role}&t=${new Date().getTime()}`;
+        window.open(url, '_blank');
+        setTimeout(() => toggleLoading(false), 300);
     }
-    
-    // 主管：取得待審核筆數並顯示在按鈕上
+
+    function logout() {
+        sessionStorage.removeItem('clinicUser');
+        currentUser = null;
+        window.location.reload();
+    }
+
     async function loadPendingCount() {
         try {
             const resp = await fetch(GAS_URL, {
@@ -422,13 +565,10 @@
             const res = await resp.json();
             if (res.status === "success") {
                 const total = (res.data.leaves || []).length + (res.data.bonuses || []).length;
-                if (total > 0) {
-                    $('#reviewBadge').text(total + ' 筆待審').removeClass('hidden');
-                } else {
-                    $('#reviewBadge').addClass('hidden');
-                }
+                if (total > 0) $('#reviewBadge').text(total + ' 筆待審').removeClass('hidden');
+                else $('#reviewBadge').addClass('hidden');
             }
-        } catch (e) { /* 靜默失敗，不影響主頁 */ }
+        } catch (e) { /* 靜默失敗 */ }
     }
 
     function showError(m) { $('#msg').text(m); }
@@ -437,7 +577,7 @@
     function startIdleTimer() {
         const resetTimer = () => {
             clearTimeout(idleTimer);
-            idleTimer = setTimeout(() => { if (currentUser) logout(); }, 600000); // 延長至10分鐘 
+            idleTimer = setTimeout(() => { if (currentUser) logout(); }, 600000);
         };
         $(document).on('mousemove keypress mousedown touchstart', resetTimer);
         resetTimer();
