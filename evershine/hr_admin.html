@@ -1,0 +1,1074 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>人員管理 - 永晴美學牙醫診所</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #5c6b73;
+            --accent: #8ecae6;
+            --success: #9dc88d;
+            --danger: #ef9a9a;
+            --bg: #f4f6f8;
+            --gray: #b0bec5;
+            --orange: #ffcc80;
+            --teal: #80cbc4;
+            --card: #ffffff;
+            --border: #e8ecef;
+            --text: #37474f;
+            --text-light: #78909c;
+            --manager-blue: #1565c0;
+            --manager-light: #e3f2fd;
+        }
+
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+        }
+
+        /* ── Loading ── */
+        #loadingOverlay {
+            position: fixed; inset: 0;
+            background: rgba(255,255,255,0.8);
+            backdrop-filter: blur(3px);
+            z-index: 9999;
+            display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+        }
+        #loadingOverlay.hidden { display: none !important; }
+        .spinner {
+            width: 44px; height: 44px;
+            border: 4px solid #f0f0f0;
+            border-top: 4px solid var(--accent);
+            border-radius: 50%;
+            animation: spin 0.9s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ── Header ── */
+        .page-header {
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 14px 16px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            position: sticky; top: 0; z-index: 100;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.06);
+        }
+        .back-btn {
+            background: none; border: none;
+            color: var(--primary); font-size: 1.1em;
+            cursor: pointer; padding: 6px 8px;
+            border-radius: 8px;
+            transition: background 0.2s;
+        }
+        .back-btn:hover { background: var(--bg); }
+        .page-title { font-size: 1.1em; font-weight: 700; color: var(--primary); flex: 1; }
+        .header-role {
+            font-size: 0.75em;
+            background: var(--manager-light);
+            color: var(--manager-blue);
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+        }
+
+        /* ── Tab Bar ── */
+        .tab-bar {
+            display: flex;
+            background: var(--card);
+            border-bottom: 1px solid var(--border);
+            padding: 0 8px;
+        }
+        .tab-btn {
+            flex: 1; background: none; border: none;
+            padding: 14px 8px;
+            font-size: 0.88em;
+            font-weight: 600;
+            color: var(--text-light);
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.2s;
+            display: flex; align-items: center; justify-content: center; gap: 6px;
+        }
+        .tab-btn.active {
+            color: var(--manager-blue);
+            border-bottom-color: var(--manager-blue);
+        }
+
+        /* ── Content ── */
+        .tab-content { display: none; padding: 16px; }
+        .tab-content.active { display: block; }
+
+        /* ── Cards ── */
+        .card {
+            background: var(--card);
+            border-radius: 16px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+            overflow: hidden;
+            margin-bottom: 16px;
+        }
+        .card-header {
+            padding: 14px 16px;
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; justify-content: space-between;
+        }
+        .card-title {
+            font-size: 0.95em; font-weight: 700; color: var(--primary);
+            display: flex; align-items: center; gap: 8px;
+        }
+
+        /* ── Search & Filter ── */
+        .search-row {
+            display: flex; gap: 10px; margin-bottom: 14px;
+        }
+        .search-input {
+            flex: 1; padding: 10px 14px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px; font-size: 0.9em;
+            background: var(--card); color: var(--text);
+            transition: border 0.2s;
+        }
+        .search-input:focus { outline: none; border-color: var(--accent); }
+
+        .filter-select {
+            padding: 10px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px; font-size: 0.85em;
+            background: var(--card); color: var(--text);
+            cursor: pointer;
+        }
+        .filter-select:focus { outline: none; border-color: var(--accent); }
+
+        /* ── Employee List ── */
+        .emp-item {
+            padding: 14px 16px;
+            border-bottom: 1px solid #f5f7f9;
+            display: flex; align-items: center; gap: 12px;
+            cursor: pointer; transition: background 0.15s;
+        }
+        .emp-item:last-child { border-bottom: none; }
+        .emp-item:hover { background: #f9fbfc; }
+
+        .emp-avatar {
+            width: 40px; height: 40px; border-radius: 12px;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 1.1em; font-weight: 700; color: white;
+            flex-shrink: 0;
+        }
+        .emp-info { flex: 1; min-width: 0; }
+        .emp-name { font-weight: 700; font-size: 0.95em; }
+        .emp-meta { font-size: 0.78em; color: var(--text-light); margin-top: 2px; }
+        .emp-arrow { color: var(--gray); font-size: 0.85em; }
+
+        .badge {
+            display: inline-block;
+            padding: 2px 8px; border-radius: 20px;
+            font-size: 0.72em; font-weight: 600;
+        }
+        .badge-active { background: #e8f5e9; color: #2e7d32; }
+        .badge-inactive { background: #fce4ec; color: #c62828; }
+        .badge-role { background: var(--manager-light); color: var(--manager-blue); }
+        .badge-parttime { background: #fff8e1; color: #f57f17; }
+
+        /* ── Add Employee Button ── */
+        .fab {
+            position: fixed; bottom: 24px; right: 24px;
+            width: 56px; height: 56px;
+            border-radius: 16px;
+            background: var(--manager-blue);
+            color: white; border: none;
+            font-size: 1.4em;
+            cursor: pointer;
+            box-shadow: 0 6px 16px rgba(21,101,192,0.35);
+            transition: transform 0.2s, box-shadow 0.2s;
+            z-index: 50;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .fab:active { transform: scale(0.93); box-shadow: 0 2px 8px rgba(21,101,192,0.2); }
+        .fab.hidden { display: none !important; }
+
+        /* ── Modal ── */
+        .modal-overlay {
+            position: fixed; inset: 0;
+            background: rgba(0,0,0,0.55);
+            backdrop-filter: blur(4px);
+            z-index: 500;
+            display: flex; justify-content: center; align-items: flex-end;
+        }
+        .modal-overlay.hidden { display: none !important; }
+        .modal-sheet {
+            background: var(--card);
+            width: 100%; max-width: 480px;
+            border-radius: 24px 24px 0 0;
+            padding: 0 0 env(safe-area-inset-bottom, 12px);
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideUp 0.25s ease;
+        }
+        @keyframes slideUp { from { transform: translateY(40px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+        .modal-handle {
+            width: 40px; height: 4px;
+            background: var(--border);
+            border-radius: 2px;
+            margin: 12px auto 16px;
+        }
+        .modal-title {
+            padding: 0 20px 14px;
+            font-size: 1.05em; font-weight: 700; color: var(--primary);
+            border-bottom: 1px solid var(--border);
+            display: flex; align-items: center; gap: 8px;
+        }
+        .modal-body { padding: 16px 20px; }
+
+        /* ── Form Fields ── */
+        .form-section {
+            margin-bottom: 20px;
+        }
+        .form-section-title {
+            font-size: 0.75em;
+            font-weight: 700;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+            margin-bottom: 10px;
+        }
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .form-group { display: flex; flex-direction: column; gap: 5px; }
+        .form-group.full { grid-column: span 2; }
+        .form-label { font-size: 0.78em; color: var(--text-light); font-weight: 600; }
+        .form-control {
+            padding: 10px 12px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px; font-size: 0.9em;
+            color: var(--text); background: white;
+            transition: border 0.2s;
+            font-family: inherit;
+        }
+        .form-control:focus { outline: none; border-color: var(--accent); }
+        .form-control:disabled {
+            background: #f5f7f9;
+            color: var(--text-light);
+            cursor: not-allowed;
+        }
+        .form-control.input-number { text-align: right; }
+
+        /* ── Buttons ── */
+        .btn {
+            padding: 12px 20px;
+            border: none; border-radius: 12px;
+            font-size: 0.9em; font-weight: 700;
+            cursor: pointer; transition: all 0.2s;
+            display: inline-flex; align-items: center; gap: 6px;
+            font-family: inherit;
+        }
+        .btn:active { transform: scale(0.97); }
+        .btn-primary { background: var(--manager-blue); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-danger { background: var(--danger); color: #7f0000; }
+        .btn-ghost { background: var(--bg); color: var(--text-light); }
+        .btn-full { width: 100%; justify-content: center; }
+        .btn-row { display: flex; gap: 10px; margin-top: 16px; }
+
+        /* ── Leave Balance Tab ── */
+        .al-year-selector {
+            display: flex; align-items: center; gap: 10px;
+            margin-bottom: 16px;
+        }
+        .year-label {
+            font-size: 1.1em; font-weight: 700; color: var(--primary); flex: 1;
+        }
+        .year-nav {
+            background: var(--bg); border: none;
+            width: 32px; height: 32px; border-radius: 8px;
+            font-size: 0.9em; cursor: pointer; color: var(--primary);
+            display: flex; align-items: center; justify-content: center;
+        }
+
+        .al-emp-list { display: flex; flex-direction: column; gap: 0; }
+        .al-emp-row {
+            display: flex; align-items: center; gap: 12px;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f5f7f9;
+        }
+        .al-emp-row:last-child { border-bottom: none; }
+        .al-emp-name { flex: 1; font-weight: 600; font-size: 0.9em; }
+        .al-emp-sub { font-size: 0.75em; color: var(--text-light); margin-top: 2px; }
+        .al-input {
+            width: 72px;
+            padding: 8px 10px;
+            border: 1.5px solid var(--border);
+            border-radius: 10px;
+            font-size: 0.9em; font-weight: 700;
+            text-align: center;
+            color: var(--text);
+            font-family: inherit;
+        }
+        .al-input:focus { outline: none; border-color: var(--success); }
+        .al-current {
+            min-width: 44px; text-align: right;
+            font-size: 0.85em; font-weight: 700;
+            color: var(--manager-blue);
+        }
+
+        /* ── Log List ── */
+        .log-filter-row {
+            display: flex; gap: 8px; margin-bottom: 12px; flex-wrap: wrap;
+        }
+        .log-item {
+            display: flex; align-items: flex-start; gap: 10px;
+            padding: 12px 16px;
+            border-bottom: 1px solid #f5f7f9;
+        }
+        .log-item:last-child { border-bottom: none; }
+        .log-type {
+            width: 28px; height: 28px;
+            border-radius: 8px; flex-shrink: 0;
+            display: flex; align-items: center; justify-content: center;
+            font-size: 0.9em; font-weight: 700;
+        }
+        .log-add { background: #e8f5e9; color: #2e7d32; }
+        .log-sub { background: #fce4ec; color: #c62828; }
+        .log-info { flex: 1; min-width: 0; }
+        .log-reason { font-size: 0.85em; font-weight: 600; }
+        .log-meta { font-size: 0.75em; color: var(--text-light); margin-top: 2px; }
+        .log-amount { font-size: 0.9em; font-weight: 700; }
+
+        /* ── Toast ── */
+        #toast {
+            position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%);
+            background: #37474f; color: white;
+            padding: 10px 20px; border-radius: 20px;
+            font-size: 0.88em; font-weight: 600;
+            z-index: 1000; transition: opacity 0.3s;
+            pointer-events: none; white-space: nowrap;
+        }
+        #toast.hidden { opacity: 0; }
+
+        .empty-state {
+            text-align: center; padding: 40px 20px;
+            color: var(--text-light); font-size: 0.9em;
+        }
+        .empty-state i { font-size: 2.5em; margin-bottom: 12px; opacity: 0.3; display: block; }
+
+        /* ── Employee detail view fields ── */
+        .detail-divider {
+            height: 1px; background: var(--border);
+            margin: 4px 0 14px;
+        }
+    </style>
+</head>
+<body>
+
+<div id="loadingOverlay">
+    <div class="spinner"></div>
+    <p style="margin-top:12px; color:var(--primary); font-weight:bold; font-size:0.9em;">載入中...</p>
+</div>
+
+<div id="toast" class="hidden"></div>
+
+<!-- Header -->
+<div class="page-header">
+    <button class="back-btn" onclick="goBack()"><i class="fa-solid fa-chevron-left"></i></button>
+    <span class="page-title"><i class="fa-solid fa-users-gear" style="color:var(--manager-blue)"></i> 人員管理</span>
+    <span class="header-role" id="headerRole">主管</span>
+</div>
+
+<!-- Tab Bar -->
+<div class="tab-bar">
+    <button class="tab-btn active" onclick="switchTab('emp')" id="tabEmp">
+        <i class="fa-solid fa-id-card"></i> 員工資料
+    </button>
+    <button class="tab-btn" onclick="switchTab('leave')" id="tabLeave">
+        <i class="fa-solid fa-umbrella-beach"></i> 特休管理
+    </button>
+    <button class="tab-btn" onclick="switchTab('log')" id="tabLog">
+        <i class="fa-solid fa-clock-rotate-left"></i> 異動記錄
+    </button>
+</div>
+
+<!-- ══════════════ Tab 1: Employee Master ══════════════ -->
+<div id="tabContentEmp" class="tab-content active">
+    <div class="search-row">
+        <input type="text" class="search-input" id="empSearch"
+            placeholder="搜尋姓名或工號…" oninput="filterEmployees()">
+        <select class="filter-select" id="empStatusFilter" onchange="filterEmployees()">
+            <option value="all">全部</option>
+            <option value="在職">在職</option>
+            <option value="離職">離職</option>
+        </select>
+    </div>
+
+    <div class="card">
+        <div id="empList"></div>
+    </div>
+</div>
+
+<!-- ══════════════ Tab 2: Annual Leave ══════════════ -->
+<div id="tabContentLeave" class="tab-content">
+    <div class="al-year-selector">
+        <button class="year-nav" onclick="changeYear(-1)"><i class="fa-solid fa-chevron-left"></i></button>
+        <span class="year-label" id="alYearLabel"></span>
+        <button class="year-nav" onclick="changeYear(1)"><i class="fa-solid fa-chevron-right"></i></button>
+        <button class="btn btn-success" onclick="batchAddLeave()" style="padding:8px 14px; font-size:0.82em;">
+            <i class="fa-solid fa-plus"></i> 批次新增
+        </button>
+    </div>
+
+    <div class="card">
+        <div class="card-header">
+            <span class="card-title">
+                <i class="fa-solid fa-beach" style="color:var(--orange)"></i>
+                各員工特休天數設定
+            </span>
+            <span style="font-size:0.78em; color:var(--text-light);">目前餘額</span>
+        </div>
+        <div id="alEmpList" class="al-emp-list"></div>
+    </div>
+
+    <p style="font-size:0.75em; color:var(--text-light); text-align:center; margin-top:4px; padding-bottom:80px;">
+        <i class="fa-solid fa-circle-info"></i> 填入天數後點「批次新增」一次寫入，可單筆為 0.5 天
+    </p>
+</div>
+
+<!-- ══════════════ Tab 3: Logs ══════════════ -->
+<div id="tabContentLog" class="tab-content">
+    <div class="log-filter-row">
+        <select class="filter-select" id="logEmpFilter" onchange="filterLogs()" style="flex:1;">
+            <option value="all">全部員工</option>
+        </select>
+        <select class="filter-select" id="logTypeFilter" onchange="filterLogs()">
+            <option value="all">加 / 減</option>
+            <option value="加">+ 加入</option>
+            <option value="減">- 扣除</option>
+        </select>
+    </div>
+
+    <div class="card">
+        <div id="logList"></div>
+    </div>
+</div>
+
+<!-- ══════════════ FAB: Add Employee ══════════════ -->
+<button class="fab" id="fabAdd" onclick="openEmpModal(null)" title="新增員工">
+    <i class="fa-solid fa-user-plus"></i>
+</button>
+
+<!-- ══════════════ Modal: Employee Edit ══════════════ -->
+<div class="modal-overlay hidden" id="empModal">
+    <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <div class="modal-title" id="empModalTitle">
+            <i class="fa-solid fa-id-card"></i> 員工資料
+        </div>
+        <div class="modal-body">
+
+            <div class="form-section">
+                <div class="form-section-title">基本識別</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">工號 Emp_ID</label>
+                        <input class="form-control" id="fEmpId" placeholder="E001" disabled>
+                        <span style="font-size:0.72em; color:var(--text-light); margin-top:2px;">工號建立後不可更改</span>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">姓名 Name</label>
+                        <input class="form-control" id="fName" placeholder="王小明">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">職稱 Role</label>
+                        <input class="form-control" id="fRole" placeholder="護理師">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">員工類型</label>
+                        <select class="form-control" id="fEmpType">
+                            <option value="正職">正職</option>
+                            <option value="兼職">兼職</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">狀態 Status</label>
+                        <select class="form-control" id="fStatus">
+                            <option value="在職">在職</option>
+                            <option value="離職">離職</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">登入密碼 PW</label>
+                        <input class="form-control" id="fPatternCode" placeholder="A">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-section-title">到職與生日</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">到職日 Arrival_Date</label>
+                        <input class="form-control" type="date" id="fArrivalDate">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">生日 Birthday</label>
+                        <input class="form-control" type="date" id="fBirthday">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-section-title">薪資與保險</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">底薪 Base_Pay</label>
+                        <input class="form-control input-number" type="number" id="fBasePay" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">勞保 Ins_Labor</label>
+                        <input class="form-control input-number" type="number" id="fInsLabor" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">健保 Ins_Health</label>
+                        <input class="form-control input-number" type="number" id="fInsHealth" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">健保(眷屬)</label>
+                        <input class="form-control input-number" type="number" id="fInsHealthFamily" placeholder="0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="form-section">
+                <div class="form-section-title">加給與獎金</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">業績獎金比例</label>
+                        <input class="form-control input-number" type="number" step="0.0001" id="fRevenueRate" placeholder="0.001">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">年資加給</label>
+                        <input class="form-control input-number" type="number" id="fSeniority" placeholder="0">
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">行政加給</label>
+                        <input class="form-control input-number" type="number" id="fAdmin" placeholder="0">
+                    </div>
+                </div>
+            </div>
+
+            <div class="btn-row">
+                <button class="btn btn-ghost" style="flex:1;" onclick="closeEmpModal()">
+                    <i class="fa-solid fa-xmark"></i> 取消
+                </button>
+                <button class="btn btn-primary" style="flex:2;" onclick="saveEmployee()">
+                    <i class="fa-solid fa-floppy-disk"></i> 儲存
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- ══════════════ Modal: Employee Leave Log ══════════════ -->
+<div class="modal-overlay hidden" id="empLeaveModal">
+    <div class="modal-sheet">
+        <div class="modal-handle"></div>
+        <div class="modal-title" id="empLeaveModalTitle">
+            <i class="fa-solid fa-umbrella-beach"></i> 特休記錄
+        </div>
+        <div class="modal-body">
+            <div id="empLeaveLogList"></div>
+            <div style="margin-top:16px; padding-top:14px; border-top:1px solid var(--border);">
+                <div class="form-section-title" style="margin-bottom:10px;">手動新增一筆</div>
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label class="form-label">類型</label>
+                        <select class="form-control" id="manualType">
+                            <option value="加">加入特休</option>
+                            <option value="減">扣除特休</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label class="form-label">天數</label>
+                        <input class="form-control input-number" type="number" step="0.5" min="0.5" id="manualAmount" placeholder="0.5">
+                    </div>
+                    <div class="form-group full">
+                        <label class="form-label">備注 Reason</label>
+                        <input class="form-control" id="manualReason" placeholder="例：2025年度特休">
+                    </div>
+                </div>
+                <div class="btn-row">
+                    <button class="btn btn-ghost" style="flex:1;" onclick="closeEmpLeaveModal()">關閉</button>
+                    <button class="btn btn-success" style="flex:2;" onclick="saveManualLeave()">
+                        <i class="fa-solid fa-plus"></i> 寫入
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ─────────────────────────────────────────────────────────
+// State
+// ─────────────────────────────────────────────────────────
+let currentUser = null;
+let allEmployees = [];   // raw data from GAS
+let allLogs = [];        // Leave_Balance_Logs raw
+let alYear = new Date().getFullYear();
+let alBalances = {};     // { empId: remainingDays }
+let editingEmpId = null; // null = new employee
+let leaveModalEmpId = null;
+
+// ─────────────────────────────────────────────────────────
+// Init
+// ─────────────────────────────────────────────────────────
+$(document).ready(async () => {
+    const saved = sessionStorage.getItem('clinicUser');
+    if (!saved) { location.href = 'index.html'; return; }
+    currentUser = JSON.parse(saved);
+    if (currentUser.role !== '主管' && currentUser.role !== 'Admin') {
+        alert('無權限'); location.href = 'index.html'; return;
+    }
+    $('#headerRole').text(currentUser.name + ' · ' + currentUser.role);
+    await loadAll();
+    hideLoading();
+});
+
+// ─────────────────────────────────────────────────────────
+// Data Loading
+// ─────────────────────────────────────────────────────────
+async function loadAll() {
+    showLoading();
+    try {
+        const [empRes, logRes] = await Promise.all([
+            gasCall({ action: 'getEmployeeMaster' }),
+            gasCall({ action: 'getLeaveBalanceLogs' })
+        ]);
+        if (empRes.status === 'success') {
+            allEmployees = empRes.employees || [];
+        }
+        if (logRes.status === 'success') {
+            allLogs = logRes.logs || [];
+        }
+        computeBalances();
+        renderEmpList();
+        renderAlList();
+        renderLogList();
+        populateLogEmpFilter();
+    } catch (e) {
+        showToast('❌ 載入失敗：' + e.message);
+    } finally {
+        hideLoading();
+    }
+}
+
+function computeBalances() {
+    alBalances = {};
+    allLogs.forEach(log => {
+        const id = log.empId;
+        if (!alBalances[id]) alBalances[id] = 0;
+        const amt = parseFloat(log.amount) || 0;
+        if (log.type === '加') alBalances[id] += amt;
+        else alBalances[id] -= amt;
+    });
+}
+
+// ─────────────────────────────────────────────────────────
+// Tab Switching
+// ─────────────────────────────────────────────────────────
+function switchTab(name) {
+    ['emp', 'leave', 'log'].forEach(t => {
+        $(`#tabContent${t.charAt(0).toUpperCase() + t.slice(1)}`).removeClass('active');
+        $(`#tab${t.charAt(0).toUpperCase() + t.slice(1)}`).removeClass('active');
+    });
+    $(`#tabContent${name.charAt(0).toUpperCase() + name.slice(1)}`).addClass('active');
+    $(`#tab${name.charAt(0).toUpperCase() + name.slice(1)}`).addClass('active');
+    $('#fabAdd').toggleClass('hidden', name !== 'emp');
+}
+
+// ─────────────────────────────────────────────────────────
+// Tab 1: Employee List
+// ─────────────────────────────────────────────────────────
+const AVATAR_COLORS = ['#8ecae6','#9dc88d','#9fa8da','#80cbc4','#ffcc80','#ce93d8','#ef9a9a','#a5d6a7'];
+function avatarColor(name) {
+    let n = 0; for (let c of name) n += c.charCodeAt(0);
+    return AVATAR_COLORS[n % AVATAR_COLORS.length];
+}
+
+function filterEmployees() {
+    const q = $('#empSearch').val().toLowerCase();
+    const sf = $('#empStatusFilter').val();
+    const filtered = allEmployees.filter(e => {
+        const matchQ = !q || e.name?.toLowerCase().includes(q) || e.id?.toLowerCase().includes(q);
+        const matchS = sf === 'all' || e.status === sf;
+        return matchQ && matchS;
+    });
+    renderEmpListItems(filtered);
+}
+
+function renderEmpList() { filterEmployees(); }
+
+function renderEmpListItems(list) {
+    const $list = $('#empList');
+    if (list.length === 0) {
+        $list.html('<div class="empty-state"><i class="fa-solid fa-user-slash"></i>沒有符合條件的員工</div>');
+        return;
+    }
+    $list.html(list.map(e => {
+        const initial = (e.name || '?')[0];
+        const statusBadge = e.status === '在職'
+            ? `<span class="badge badge-active">在職</span>`
+            : `<span class="badge badge-inactive">離職</span>`;
+        const typeBadge = e.empType === '兼職'
+            ? `<span class="badge badge-parttime">兼職</span>`
+            : `<span class="badge badge-role">正職</span>`;
+        return `<div class="emp-item" onclick="openEmpModal('${e.id}')">
+            <div class="emp-avatar" style="background:${avatarColor(e.name||'?')}">${initial}</div>
+            <div class="emp-info">
+                <div class="emp-name">${e.name || '-'} <span style="font-weight:400; color:var(--text-light); font-size:0.85em;">${e.id}</span></div>
+                <div class="emp-meta">${e.role || '-'} &nbsp;${statusBadge} ${typeBadge}</div>
+            </div>
+            <i class="fa-solid fa-chevron-right emp-arrow"></i>
+        </div>`;
+    }).join(''));
+}
+
+// ─────────────────────────────────────────────────────────
+// Tab 1: Employee Modal
+// ─────────────────────────────────────────────────────────
+function openEmpModal(empId) {
+    editingEmpId = empId;
+    const isNew = !empId;
+    const e = isNew ? {} : (allEmployees.find(x => x.id === empId) || {});
+
+    $('#empModalTitle').html(isNew
+        ? '<i class="fa-solid fa-user-plus"></i> 新增員工'
+        : `<i class="fa-solid fa-pen-to-square"></i> 編輯：${e.name || empId}`);
+
+    // Populate fields
+    $('#fEmpId').val(isNew ? autoNextId() : e.id).prop('disabled', !isNew);
+    $('#fName').val(e.name || '');
+    $('#fRole').val(e.role || '');
+    $('#fEmpType').val(e.empType || '正職');
+    $('#fStatus').val(e.status || '在職');
+    $('#fPatternCode').val(e.patternCode || '');
+    $('#fArrivalDate').val(e.arrivalDate || '');
+    $('#fBirthday').val(e.birthday || '');
+    $('#fBasePay').val(e.basePay || '');
+    $('#fInsLabor').val(e.insLabor || '');
+    $('#fInsHealth').val(e.insHealth || '');
+    $('#fInsHealthFamily').val(e.insHealthFamily || '');
+    $('#fRevenueRate').val(e.revenueRate || '');
+    $('#fSeniority').val(e.seniority || '');
+    $('#fAdmin').val(e.adminBonus || '');
+
+    $('#empModal').removeClass('hidden');
+}
+
+function closeEmpModal() { $('#empModal').addClass('hidden'); }
+
+function autoNextId() {
+    const ids = allEmployees.map(e => {
+        const m = (e.id || '').match(/^E(\d+)$/i);
+        return m ? parseInt(m[1]) : 0;
+    });
+    const max = ids.length ? Math.max(...ids) : 0;
+    return 'E' + String(max + 1).padStart(3, '0');
+}
+
+async function saveEmployee() {
+    const isNew = !editingEmpId;
+    const payload = {
+        action: isNew ? 'addEmployee' : 'updateEmployee',
+        employee: {
+            id:              isNew ? $('#fEmpId').val().trim() : editingEmpId,
+            name:            $('#fName').val().trim(),
+            role:            $('#fRole').val().trim(),
+            empType:         $('#fEmpType').val(),
+            status:          $('#fStatus').val(),
+            patternCode:     $('#fPatternCode').val().trim(),
+            arrivalDate:     $('#fArrivalDate').val(),
+            birthday:        $('#fBirthday').val(),
+            basePay:         parseFloat($('#fBasePay').val()) || 0,
+            insLabor:        parseFloat($('#fInsLabor').val()) || 0,
+            insHealth:       parseFloat($('#fInsHealth').val()) || 0,
+            insHealthFamily: parseFloat($('#fInsHealthFamily').val()) || 0,
+            revenueRate:     parseFloat($('#fRevenueRate').val()) || 0,
+            seniority:       parseFloat($('#fSeniority').val()) || 0,
+            adminBonus:      parseFloat($('#fAdmin').val()) || 0,
+        }
+    };
+
+    if (!payload.employee.name) { showToast('⚠️ 請輸入姓名'); return; }
+    if (isNew && !payload.employee.id) { showToast('⚠️ 請輸入工號'); return; }
+
+    showLoading();
+    try {
+        const res = await gasCall(payload);
+        if (res.status === 'success') {
+            showToast(isNew ? '✅ 員工已新增' : '✅ 資料已更新');
+            closeEmpModal();
+            await loadAll();
+        } else {
+            showToast('❌ ' + res.message);
+        }
+    } catch (e) {
+        showToast('❌ 儲存失敗');
+    } finally {
+        hideLoading();
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// Tab 2: Annual Leave
+// ─────────────────────────────────────────────────────────
+function changeYear(delta) {
+    alYear += delta;
+    renderAlList();
+}
+
+function renderAlList() {
+    $('#alYearLabel').text(alYear + ' 年度特休');
+    const activeEmps = allEmployees.filter(e => e.status === '在職' || e.status === 'Active');
+
+    if (activeEmps.length === 0) {
+        $('#alEmpList').html('<div class="empty-state"><i class="fa-solid fa-users"></i>無在職員工</div>');
+        return;
+    }
+
+    $('#alEmpList').html(activeEmps.map(e => {
+        const bal = (alBalances[e.id] || 0).toFixed(1);
+        const balColor = parseFloat(bal) <= 0 ? '#c62828' : 'var(--manager-blue)';
+        return `<div class="al-emp-row">
+            <div style="flex:1;">
+                <div class="al-emp-name">${e.name}</div>
+                <div class="al-emp-sub">${e.id} · ${e.role || '-'}
+                    &nbsp;<span style="cursor:pointer; color:var(--accent); text-decoration:underline;"
+                        onclick="openEmpLeaveModal('${e.id}','${e.name}')">
+                        <i class="fa-solid fa-list-ul" style="font-size:0.85em;"></i> 明細
+                    </span>
+                </div>
+            </div>
+            <input class="al-input" type="number" step="0.5" min="0" placeholder="天數"
+                id="alInput_${e.id}" title="${e.name} 本次新增天數">
+            <div class="al-current" style="color:${balColor}; min-width:50px; text-align:right;">
+                <div style="font-size:0.65em; color:var(--text-light); margin-bottom:1px;">餘</div>
+                ${bal}天
+            </div>
+        </div>`;
+    }).join(''));
+}
+
+async function batchAddLeave() {
+    const activeEmps = allEmployees.filter(e => e.status === '在職' || e.status === 'Active');
+    const entries = [];
+    activeEmps.forEach(e => {
+        const v = parseFloat($(`#alInput_${e.id}`).val());
+        if (!isNaN(v) && v > 0) {
+            entries.push({ empId: e.id, amount: v });
+        }
+    });
+
+    if (entries.length === 0) {
+        showToast('⚠️ 請至少輸入一筆天數'); return;
+    }
+
+    const names = entries.map(x => {
+        const emp = allEmployees.find(e => e.id === x.empId);
+        return `${emp?.name || x.empId}：${x.amount}天`;
+    }).join('\n');
+
+    if (!confirm(`即將寫入以下特休：\n\n${names}\n\n確認嗎？`)) return;
+
+    showLoading();
+    try {
+        const res = await gasCall({
+            action: 'batchAddAnnualLeave',
+            year: alYear,
+            entries: entries
+        });
+        if (res.status === 'success') {
+            showToast(`✅ 已寫入 ${entries.length} 筆`);
+            activeEmps.forEach(e => $(`#alInput_${e.id}`).val(''));
+            await loadAll();
+        } else {
+            showToast('❌ ' + res.message);
+        }
+    } catch (e) {
+        showToast('❌ 寫入失敗');
+    } finally {
+        hideLoading();
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// Tab 2: Individual Leave Log Modal
+// ─────────────────────────────────────────────────────────
+function openEmpLeaveModal(empId, empName) {
+    leaveModalEmpId = empId;
+    $('#empLeaveModalTitle').html(`<i class="fa-solid fa-umbrella-beach"></i> ${empName} 特休記錄`);
+    $('#manualAmount').val('');
+    $('#manualReason').val('');
+    $('#manualType').val('加');
+
+    const empLogs = allLogs.filter(l => l.empId === empId)
+        .sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+
+    if (empLogs.length === 0) {
+        $('#empLeaveLogList').html('<div class="empty-state" style="padding:20px 0;"><i class="fa-solid fa-inbox"></i>尚無記錄</div>');
+    } else {
+        let running = 0;
+        // compute running total
+        const sorted = [...empLogs].reverse();
+        const withBalance = sorted.map(l => {
+            if (l.type === '加') running += parseFloat(l.amount) || 0;
+            else running -= parseFloat(l.amount) || 0;
+            return { ...l, balance: running };
+        }).reverse();
+
+        $('#empLeaveLogList').html('<div>' + withBalance.map(l => {
+            const isAdd = l.type === '加';
+            const color = isAdd ? '#2e7d32' : '#c62828';
+            const sign  = isAdd ? '+' : '-';
+            return `<div class="log-item">
+                <div class="log-type ${isAdd ? 'log-add' : 'log-sub'}">${isAdd ? '+' : '-'}</div>
+                <div class="log-info">
+                    <div class="log-reason">${l.reason || '-'}</div>
+                    <div class="log-meta">${l.date || '-'}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div class="log-amount" style="color:${color}">${sign}${parseFloat(l.amount).toFixed(1)}天</div>
+                    <div style="font-size:0.72em; color:var(--text-light);">餘 ${l.balance.toFixed(1)}</div>
+                </div>
+            </div>`;
+        }).join('') + '</div>');
+    }
+
+    $('#empLeaveModal').removeClass('hidden');
+}
+
+function closeEmpLeaveModal() { $('#empLeaveModal').addClass('hidden'); }
+
+async function saveManualLeave() {
+    const type   = $('#manualType').val();
+    const amount = parseFloat($('#manualAmount').val());
+    const reason = $('#manualReason').val().trim();
+
+    if (!amount || amount <= 0) { showToast('⚠️ 請輸入有效天數'); return; }
+    if (!reason) { showToast('⚠️ 請填寫備注'); return; }
+
+    showLoading();
+    try {
+        const res = await gasCall({
+            action: 'addLeaveBalanceLog',
+            empId: leaveModalEmpId,
+            type, amount, reason
+        });
+        if (res.status === 'success') {
+            showToast('✅ 已寫入');
+            await loadAll();
+            openEmpLeaveModal(
+                leaveModalEmpId,
+                allEmployees.find(e => e.id === leaveModalEmpId)?.name || leaveModalEmpId
+            );
+        } else {
+            showToast('❌ ' + res.message);
+        }
+    } catch (e) {
+        showToast('❌ 失敗');
+    } finally {
+        hideLoading();
+    }
+}
+
+// ─────────────────────────────────────────────────────────
+// Tab 3: Log List
+// ─────────────────────────────────────────────────────────
+function populateLogEmpFilter() {
+    const select = document.getElementById('logEmpFilter');
+    const existing = Array.from(select.options).map(o => o.value);
+    allEmployees.forEach(e => {
+        if (!existing.includes(e.id)) {
+            const opt = document.createElement('option');
+            opt.value = e.id;
+            opt.textContent = e.name + ' (' + e.id + ')';
+            select.appendChild(opt);
+        }
+    });
+}
+
+function filterLogs() {
+    const empF  = $('#logEmpFilter').val();
+    const typeF = $('#logTypeFilter').val();
+    const filtered = allLogs.filter(l => {
+        const matchE = empF  === 'all' || l.empId === empF;
+        const matchT = typeF === 'all' || l.type  === typeF;
+        return matchE && matchT;
+    }).sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    renderLogList(filtered);
+}
+
+function renderLogList(list) {
+    const data = list !== undefined ? list : allLogs.slice().sort((a, b) => (b.date || '').localeCompare(a.date || ''));
+    if (data.length === 0) {
+        $('#logList').html('<div class="empty-state"><i class="fa-solid fa-inbox"></i>尚無記錄</div>');
+        return;
+    }
+    const empMap = {};
+    allEmployees.forEach(e => empMap[e.id] = e.name);
+
+    $('#logList').html(data.map(l => {
+        const isAdd = l.type === '加';
+        const color = isAdd ? '#2e7d32' : '#c62828';
+        const sign  = isAdd ? '+' : '-';
+        const empName = empMap[l.empId] || l.empId;
+        return `<div class="log-item">
+            <div class="log-type ${isAdd ? 'log-add' : 'log-sub'}">${isAdd ? '+' : '-'}</div>
+            <div class="log-info">
+                <div class="log-reason">${empName} <span style="color:var(--text-light); font-weight:400; font-size:0.88em;">${l.empId}</span></div>
+                <div class="log-meta">${l.date || '-'} &nbsp;·&nbsp; ${l.reason || '-'}</div>
+            </div>
+            <div class="log-amount" style="color:${color}">${sign}${parseFloat(l.amount).toFixed(1)}</div>
+        </div>`;
+    }).join(''));
+}
+
+// ─────────────────────────────────────────────────────────
+// Utilities
+// ─────────────────────────────────────────────────────────
+function goBack() { history.back() || (location.href = 'index.html'); }
+
+async function gasCall(payload) {
+    const resp = await fetch(GAS_URL, {
+        method: 'POST',
+        body: JSON.stringify(payload)
+    });
+    return resp.json();
+}
+
+function showLoading() { $('#loadingOverlay').removeClass('hidden'); }
+function hideLoading() { $('#loadingOverlay').addClass('hidden'); }
+
+let toastTimer;
+function showToast(msg) {
+    clearTimeout(toastTimer);
+    $('#toast').text(msg).removeClass('hidden');
+    toastTimer = setTimeout(() => $('#toast').addClass('hidden'), 2800);
+}
+
+// Close modals on overlay click
+$(document).on('click', '.modal-overlay', function(e) {
+    if (e.target === this) {
+        $(this).addClass('hidden');
+    }
+});
+</script>
+</body>
+</html>

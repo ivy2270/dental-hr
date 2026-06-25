@@ -1,0 +1,394 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>請假申請 - 永晴美學牙醫診所</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.6.0/jquery.min.js"></script>
+    <script src="config.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --primary: #5c6b73; --accent: #8ecae6; --success: #9dc88d;
+            --danger: #ef9a9a; --bg: #f8f9fa; --gray: #b0bec5;
+            --orange: #ffcc80; --teal: #80cbc4;
+        }
+        * { box-sizing: border-box; }
+        body {
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+            background: var(--bg); margin: 0;
+            display: flex; justify-content: center; align-items: flex-start;
+            min-height: 100vh; padding: 20px 0;
+        }
+
+        /* Loading overlay */
+        #loadingOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.7); backdrop-filter: blur(2px);
+            z-index: 9999; display: flex; flex-direction: column;
+            justify-content: center; align-items: center;
+        }
+        .spinner {
+            width: 50px; height: 50px; border: 5px solid #f3f3f3;
+            border-top: 5px solid var(--accent); border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        .hidden { display: none !important; }
+
+        .card {
+            background: white; padding: 1.5rem; border-radius: 24px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+            width: 95%; max-width: 420px;
+        }
+
+        /* Header */
+        .page-header {
+            display: flex; align-items: center; gap: 12px;
+            margin-bottom: 20px; padding-bottom: 15px;
+            border-bottom: 2px solid #f0f0f0;
+        }
+        .back-btn {
+            background: var(--bg); border: none; border-radius: 12px;
+            width: 38px; height: 38px; cursor: pointer; font-size: 1em;
+            color: var(--primary); display: flex; align-items: center; justify-content: center;
+            transition: 0.2s; flex-shrink: 0;
+        }
+        .back-btn:active { transform: scale(0.92); background: #eee; }
+        .page-title { font-size: 1.2em; font-weight: bold; color: var(--primary); margin: 0; }
+
+        /* User info bar */
+        .user-bar {
+            background: #fcfcfc; border-radius: 15px; padding: 12px 15px;
+            margin-bottom: 20px; border: 1px solid #f5f5f5;
+            display: flex; align-items: center; gap: 10px;
+        }
+        .user-bar i { color: var(--accent); font-size: 1.1em; }
+        .user-bar-text { font-size: 0.9em; color: #666; }
+        .user-bar-name { font-weight: bold; color: var(--primary); font-size: 1em; }
+
+        /* Form elements */
+        .form-group { margin-bottom: 16px; }
+        .form-label {
+            display: block; font-size: 0.82em; color: #888;
+            margin-bottom: 6px; font-weight: 600; letter-spacing: 0.3px;
+        }
+        .form-label span { color: var(--danger); margin-left: 2px; }
+        .form-control {
+            width: 100%; padding: 12px 14px; font-size: 0.95em;
+            border: 2px solid #eee; border-radius: 12px; background: white;
+            transition: 0.3s; color: var(--primary); appearance: none;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+        .form-control:focus { border-color: var(--accent); outline: none; background: #fefefe; }
+        .form-control:disabled {
+            background: #f5f7f8; color: #aaa; cursor: not-allowed; border-color: #eee;
+        }
+
+        /* Shift toggle buttons */
+        .shift-group { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+        .shift-btn {
+            padding: 10px 4px; border: 2px solid #eee; border-radius: 12px;
+            background: white; font-size: 0.88em; cursor: pointer; text-align: center;
+            transition: 0.2s; color: var(--primary); font-weight: 600;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+        .shift-btn:active { transform: scale(0.94); }
+        .shift-btn.selected { background: var(--orange); border-color: #f4a434; color: #7a4a00; }
+
+        /* Leave type chips */
+        .leave-type-group { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+        .leave-chip {
+            padding: 11px 8px; border: 2px solid #eee; border-radius: 12px;
+            background: white; font-size: 0.88em; cursor: pointer; text-align: center;
+            transition: 0.2s; color: var(--primary); font-weight: 600;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+        .leave-chip:active { transform: scale(0.94); }
+        .leave-chip.selected { background: var(--teal); border-color: #4db6ac; color: #00413d; }
+
+        /* Other reason textarea */
+        #otherReasonGroup {
+            margin-top: 10px;
+            animation: fadeIn 0.25s ease;
+        }
+        @keyframes fadeIn { from { opacity:0; transform:translateY(-6px); } to { opacity:1; transform:translateY(0); } }
+
+        /* Submit button */
+        .submit-btn {
+            width: 100%; padding: 16px; font-size: 1em; font-weight: bold;
+            border: none; border-radius: 16px; cursor: pointer;
+            background: var(--orange); color: #7a4a00;
+            box-shadow: 0 4px 12px rgba(255, 204, 128, 0.35);
+            transition: 0.2s; margin-top: 8px;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+        .submit-btn:active { transform: scale(0.97); filter: brightness(0.95); }
+        .submit-btn i { margin-right: 6px; }
+
+        /* Message */
+        #msg { font-size: 0.88em; margin-top: 12px; text-align: center; min-height: 1.2em; font-weight: bold; }
+        .msg-success { color: #4caf50; }
+        .msg-error { color: var(--danger); }
+
+        /* Success overlay */
+        .result-box {
+            text-align: center; padding: 20px 10px;
+        }
+        .result-icon { font-size: 3em; margin-bottom: 12px; }
+        .result-title { font-size: 1.2em; font-weight: bold; color: var(--primary); margin-bottom: 8px; }
+        .result-sub { color: #999; font-size: 0.88em; margin-bottom: 20px; }
+        .result-detail {
+            background: #f9f9f9; border-radius: 14px; padding: 14px;
+            text-align: left; font-size: 0.88em; color: #555; margin-bottom: 20px;
+        }
+        .result-detail div { padding: 4px 0; display: flex; justify-content: space-between; }
+        .result-detail span:last-child { font-weight: bold; color: var(--primary); }
+
+        .btn-secondary {
+            width: 100%; padding: 14px; font-size: 0.95em; font-weight: bold;
+            border: none; border-radius: 14px; cursor: pointer; transition: 0.2s;
+            background: #eceff1; color: #78909c;
+            font-family: "PingFang TC", "Microsoft JhengHei", sans-serif;
+        }
+        .btn-secondary:active { transform: scale(0.97); }
+    </style>
+</head>
+<body>
+
+    <div id="loadingOverlay" class="hidden">
+        <div class="spinner"></div>
+        <p style="margin-top:15px; color:var(--primary); font-weight:bold;">資料傳輸中...</p>
+    </div>
+
+    <div class="card">
+        <!-- Header -->
+        <div class="page-header">
+            <button class="back-btn" onclick="goBack()"><i class="fa-solid fa-chevron-left"></i></button>
+            <h2 class="page-title"><i class="fa-solid fa-umbrella-beach" style="color:var(--orange); margin-right:6px;"></i>請假申請</h2>
+        </div>
+
+        <!-- User bar -->
+        <div class="user-bar">
+            <i class="fa-solid fa-circle-user"></i>
+            <div>
+                <div class="user-bar-name" id="displayName">載入中...</div>
+                <div class="user-bar-text">工號：<span id="displayId">—</span></div>
+            </div>
+        </div>
+
+        <!-- Form -->
+        <div id="formArea">
+            <!-- 日期 -->
+            <div class="form-group">
+                <label class="form-label">請假日期 <span>*</span></label>
+                <input type="date" id="leaveDate" class="form-control">
+            </div>
+
+            <!-- 班別 -->
+            <div class="form-group">
+                <label class="form-label">班別 <span>*</span></label>
+                <div class="shift-group">
+                    <button class="shift-btn" onclick="selectShift(this,'早')">早</button>
+                    <button class="shift-btn" onclick="selectShift(this,'午')">午</button>
+                    <button class="shift-btn" onclick="selectShift(this,'晚')">晚</button>
+                    <button class="shift-btn" onclick="selectShift(this,'全天')">全天</button>
+                </div>
+            </div>
+
+            <!-- 假別 -->
+            <div class="form-group">
+                <label class="form-label">假別 <span>*</span></label>
+                <div class="leave-type-group">
+                    <button class="leave-chip" onclick="selectLeaveType(this,'病假')">🤒 病假</button>
+                    <button class="leave-chip" onclick="selectLeaveType(this,'事假')">📋 事假</button>
+                    <button class="leave-chip" onclick="selectLeaveType(this,'生理假')">🌸 生理假</button>
+                    <button class="leave-chip" onclick="selectLeaveType(this,'其他')">✏️ 其他</button>
+                </div>
+                <!-- 其他原因輸入 -->
+                <div id="otherReasonGroup" class="hidden" style="margin-top:10px;">
+                    <label class="form-label">請說明原因 <span>*</span></label>
+                    <input type="text" id="otherReason" class="form-control" placeholder="請輸入請假原因">
+                </div>
+            </div>
+
+            <!-- 備註 -->
+            <div class="form-group">
+                <label class="form-label">備註（選填）</label>
+                <textarea id="leaveNote" class="form-control" rows="2" style="resize:none;" placeholder="有其他需要說明的事項可填寫於此"></textarea>
+            </div>
+
+            <button class="submit-btn" onclick="submitLeave()">
+                <i class="fa-solid fa-paper-plane"></i>送出請假申請
+            </button>
+            <p id="msg"></p>
+        </div>
+
+        <!-- 成功結果畫面 -->
+        <div id="resultArea" class="hidden result-box">
+            <div class="result-icon">✅</div>
+            <div class="result-title">申請已送出！</div>
+            <div class="result-sub">主管審核後將更新狀態</div>
+            <div class="result-detail" id="resultDetail"></div>
+            <button class="submit-btn" onclick="resetForm()" style="margin-bottom:10px;">
+                <i class="fa-solid fa-plus"></i>再次申請
+            </button>
+            <button class="btn-secondary" onclick="goBack()">
+                <i class="fa-solid fa-chevron-left"></i> 返回主選單
+            </button>
+        </div>
+    </div>
+
+<script>
+    let currentUser = { empId: '', name: '' };
+    let selectedShift = '';
+    let selectedLeaveType = '';
+
+    // 讀取 URL 參數帶入使用者資訊
+    function initUser() {
+        const params = new URLSearchParams(window.location.search);
+        currentUser.empId = params.get('empId') || '';
+        currentUser.name  = decodeURIComponent(params.get('name') || '');
+
+        // 也嘗試從 sessionStorage 補充（若直接進入此頁）
+        if (!currentUser.empId) {
+            const saved = sessionStorage.getItem('clinicUser');
+            if (saved) {
+                const u = JSON.parse(saved);
+                currentUser.empId = u.empId || '';
+                currentUser.name  = u.name  || '';
+            }
+        }
+
+        if (!currentUser.empId) {
+            alert('請先登入系統');
+            window.location.href = 'index.html';
+            return;
+        }
+
+        $('#displayName').text(currentUser.name);
+        $('#displayId').text(currentUser.empId);
+
+    // 初始化日期選擇器（顯示用 yyyy/M/d，實際 input 維持 date type）
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        $('#leaveDate').val(`${yyyy}-${mm}-${dd}`);
+    }
+
+    function selectShift(btn, val) {
+        $('.shift-btn').removeClass('selected');
+        $(btn).addClass('selected');
+        selectedShift = val;
+    }
+
+    function selectLeaveType(btn, val) {
+        $('.leave-chip').removeClass('selected');
+        $(btn).addClass('selected');
+        selectedLeaveType = val;
+
+        if (val === '其他') {
+            $('#otherReasonGroup').removeClass('hidden');
+        } else {
+            $('#otherReasonGroup').addClass('hidden');
+            $('#otherReason').val('');
+        }
+    }
+
+    function toggleLoading(show) {
+        if (show) $('#loadingOverlay').removeClass('hidden');
+        else $('#loadingOverlay').addClass('hidden');
+    }
+
+    function showMsg(text, type) {
+        $('#msg').text(text).attr('class', type === 'error' ? 'msg-error' : 'msg-success');
+    }
+
+    // 將 input[type=date] 的 yyyy-MM-dd 轉為 yyyy/M/d 顯示格式
+    function formatDateDisplay(isoStr) {
+        if (!isoStr) return '';
+        const [y, m, d] = isoStr.split('-');
+        return `${y}/${parseInt(m)}/${parseInt(d)}`;
+    }
+
+    async function submitLeave() {
+        const dateRaw = $('#leaveDate').val();
+        if (!dateRaw) { showMsg('❌ 請選擇請假日期', 'error'); return; }
+        if (!selectedShift) { showMsg('❌ 請選擇班別', 'error'); return; }
+        if (!selectedLeaveType) { showMsg('❌ 請選擇假別', 'error'); return; }
+
+        let leaveType = selectedLeaveType;
+        if (selectedLeaveType === '其他') {
+            const reason = $('#otherReason').val().trim();
+            if (!reason) { showMsg('❌ 請輸入請假原因', 'error'); return; }
+            leaveType = '其他：' + reason;
+        }
+
+        const note = $('#leaveNote').val().trim();
+        const dateDisplay = formatDateDisplay(dateRaw);
+
+        toggleLoading(true);
+        try {
+            const payload = {
+                action: 'submitLeave',
+                empId: currentUser.empId,
+                name: currentUser.name,
+                date: dateDisplay,
+                shift: selectedShift,
+                leaveType: leaveType,
+                note: note
+            };
+            const resp = await fetch(GAS_URL, {
+                method: 'POST',
+                body: JSON.stringify(payload)
+            });
+            const res = await resp.json();
+            if (res.status === 'success') {
+                showResult(dateDisplay, selectedShift, leaveType);
+            } else {
+                showMsg('❌ ' + (res.message || '送出失敗，請稍後再試'), 'error');
+            }
+        } catch (e) {
+            showMsg('❌ 連線失敗，請確認網路', 'error');
+        } finally {
+            toggleLoading(false);
+        }
+    }
+
+    function showResult(date, shift, type) {
+        $('#formArea').addClass('hidden');
+        const detail = `
+            <div><span>姓名</span><span>${currentUser.name}</span></div>
+            <div><span>工號</span><span>${currentUser.empId}</span></div>
+            <div><span>日期</span><span>${date}</span></div>
+            <div><span>班別</span><span>${shift}</span></div>
+            <div><span>假別</span><span>${type}</span></div>
+            <div><span>狀態</span><span style="color:#f4a434;">待審核</span></div>
+        `;
+        $('#resultDetail').html(detail);
+        $('#resultArea').removeClass('hidden');
+    }
+
+    function resetForm() {
+        $('#resultArea').addClass('hidden');
+        $('#formArea').removeClass('hidden');
+        $('.shift-btn').removeClass('selected');
+        $('.leave-chip').removeClass('selected');
+        $('#otherReasonGroup').addClass('hidden');
+        $('#otherReason, #leaveNote').val('');
+        selectedShift = '';
+        selectedLeaveType = '';
+        showMsg('', '');
+    }
+
+    function goBack() {
+        window.location.href = `index.html`;
+    }
+
+    $(document).ready(function() {
+        initUser();
+    });
+</script>
+</body>
+</html>
